@@ -15,6 +15,9 @@ struct AuthView: View {
     @Binding var isAuthenticated: Bool
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var email = ""
+    @State private var password = ""
+    @State private var isSignUpMode = false
     
     var body: some View {
         ZStack {
@@ -39,6 +42,82 @@ struct AuthView: View {
                 
                 // Sign in buttons section
                 VStack(spacing: 16) {
+                    // Email TextField
+                    ZStack(alignment: .leading) {
+                        if email.isEmpty {
+                            Text("Email")
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                .padding(.horizontal, 16)
+                        }
+                        TextField("", text: $email)
+                            .textContentType(.emailAddress)
+                            .autocapitalization(.none)
+                            .keyboardType(.emailAddress)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                    }
+                    .frame(height: 50)
+                    .background(Color(hex: "#2A3441"))
+                    .cornerRadius(8)
+                    
+                    // Password SecureField
+                    ZStack(alignment: .leading) {
+                        if password.isEmpty {
+                            Text("Password")
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                .padding(.horizontal, 16)
+                        }
+                        SecureField("", text: $password)
+                            .textContentType(isSignUpMode ? .newPassword : .password)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                    }
+                    .frame(height: 50)
+                    .background(Color(hex: "#2A3441"))
+                    .cornerRadius(8)
+                    
+                    // Sign In/Sign Up button
+                    Button(action: {
+                        if isSignUpMode {
+                            handleEmailSignUp()
+                        } else {
+                            handleEmailSignIn()
+                        }
+                    }) {
+                        Text(isSignUpMode ? "Sign Up" : "Sign In")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color(hex: "#4ADE80"))
+                            .cornerRadius(8)
+                    }
+                    
+                    // Toggle sign in/sign up mode
+                    Button(action: {
+                        isSignUpMode.toggle()
+                    }) {
+                        Text(isSignUpMode ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                    }
+                    .padding(.top, 4)
+                    
+                    // Divider with "or" text
+                    HStack {
+                        Rectangle()
+                            .fill(Color(hex: "#9CA3AF").opacity(0.3))
+                            .frame(height: 1)
+                        Text("or")
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                            .padding(.horizontal, 12)
+                        Rectangle()
+                            .fill(Color(hex: "#9CA3AF").opacity(0.3))
+                            .frame(height: 1)
+                    }
+                    .padding(.vertical, 8)
+                    
                     // Sign in with Apple button
                     SignInWithAppleButton(.signIn) { request in
                         // Request full name and email
@@ -249,6 +328,38 @@ struct AuthView: View {
                         errorMessage = error.localizedDescription
                         showError = true
                     }
+                }
+            }
+        }
+    }
+    
+    private func handleEmailSignIn() {
+        Task {
+            do {
+                try await SupabaseManager.shared.client.auth.signIn(email: email, password: password)
+                await MainActor.run {
+                    SupabaseManager.shared.isAuthenticated = true
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
+            }
+        }
+    }
+    
+    private func handleEmailSignUp() {
+        Task {
+            do {
+                try await SupabaseManager.shared.client.auth.signUp(email: email, password: password)
+                await MainActor.run {
+                    SupabaseManager.shared.isAuthenticated = true
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
                 }
             }
         }
