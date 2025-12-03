@@ -201,6 +201,26 @@ struct ProfileView: View {
                                 .background(Color(hex: "#374151"))
                                 .cornerRadius(15)
                             }
+                            
+                            Button(action: {
+                                Task {
+                                    await SupabaseManager.shared.signOut()
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.red)
+                                    Text("Sign Out")
+                                        .font(.body)
+                                        .foregroundColor(.red)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                                .background(Color(hex: "#374151"))
+                                .cornerRadius(15)
+                            }
                         }
                         .padding(.horizontal, 20)
                     }

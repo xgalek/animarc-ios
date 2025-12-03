@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		74C01A7B2EDFCA1200FF8F00 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 74BE1A7B2EDB7654007406F9 /* Supabase */; };
+		74DF6AE52EE0C51000FB1743 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 74DF6AE42EE0C51000FB1743 /* GoogleSignIn */; };
+		74DF6AE72EE0C51000FB1743 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 74DF6AE62EE0C51000FB1743 /* GoogleSignInSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,7 +58,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				74DF6AE72EE0C51000FB1743 /* GoogleSignInSwift in Frameworks */,
 				74C01A7B2EDFCA1200FF8F00 /* Supabase in Frameworks */,
+				74DF6AE52EE0C51000FB1743 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -83,6 +87,7 @@
 				74BE1A522EDB7651007406F9 /* Animarc IOS */,
 				74BE1A602EDB7654007406F9 /* Animarc IOSTests */,
 				74BE1A6A2EDB7654007406F9 /* Animarc IOSUITests */,
+				74DF6AE32EE0C51000FB1743 /* Frameworks */,
 				74BE1A512EDB7651007406F9 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -95,6 +100,13 @@
 				74BE1A672EDB7654007406F9 /* Animarc IOSUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		74DF6AE32EE0C51000FB1743 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -118,6 +130,8 @@
 			name = "Animarc IOS";
 			packageProductDependencies = (
 				74BE1A7B2EDB7654007406F9 /* Supabase */,
+				74DF6AE42EE0C51000FB1743 /* GoogleSignIn */,
+				74DF6AE62EE0C51000FB1743 /* GoogleSignInSwift */,
 			);
 			productName = "Animarc IOS";
 			productReference = 74BE1A502EDB7651007406F9 /* Animarc IOS.app */;
@@ -203,6 +217,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				74BE1A7A2EDB7654007406F9 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				74DF6AE22EE0C3A800FB1743 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 74BE1A512EDB7651007406F9 /* Products */;
@@ -402,10 +417,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Animarc IOS/Animarc IOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YHDYFCZ37W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -416,7 +434,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "app.animarc.Animarc-IOS";
+				PRODUCT_BUNDLE_IDENTIFIER = app.animarc.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -429,10 +447,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Animarc IOS/Animarc IOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YHDYFCZ37W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -443,7 +464,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "app.animarc.Animarc-IOS";
+				PRODUCT_BUNDLE_IDENTIFIER = app.animarc.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -569,6 +590,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		74DF6AE22EE0C3A800FB1743 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -576,6 +605,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 74BE1A7A2EDB7654007406F9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		74DF6AE42EE0C51000FB1743 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 74DF6AE22EE0C3A800FB1743 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		74DF6AE62EE0C51000FB1743 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 74DF6AE22EE0C3A800FB1743 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

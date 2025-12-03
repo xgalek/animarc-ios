@@ -10,7 +10,8 @@ import Supabase
 
 /// Singleton manager class for handling Supabase connections throughout the app.
 /// Access the shared instance via `SupabaseManager.shared`.
-final class SupabaseManager {
+@MainActor
+final class SupabaseManager: ObservableObject {
     
     // MARK: - Singleton
     
@@ -22,6 +23,12 @@ final class SupabaseManager {
     /// The Supabase client used for all database operations, authentication, and storage.
     /// Access this property to interact with Supabase services.
     let client: SupabaseClient
+    
+    /// Tracks whether the user is currently authenticated
+    @Published var isAuthenticated: Bool = false
+    
+    /// Tracks whether the initial session check has completed
+    @Published var isLoading: Bool = true
     
     // MARK: - Configuration
     
@@ -35,21 +42,60 @@ final class SupabaseManager {
     
     /// Private initializer to enforce singleton pattern.
     /// Initializes the Supabase client with the project URL and anon key.
+    /// Configures Keychain storage for session persistence across app restarts.
     private init() {
         self.client = SupabaseClient(
             supabaseURL: Self.supabaseURL,
-            supabaseKey: Self.supabaseAnonKey
+            supabaseKey: Self.supabaseAnonKey,
+            options: .init(
+                auth: .init(
+                    storage: KeychainLocalStorage()
+                )
+            )
         )
+    }
+    
+    // MARK: - Session Management
+    
+    /// Checks for an existing valid session stored in Keychain.
+    /// Updates isAuthenticated based on whether a valid session exists.
+    func checkExistingSession() async {
+        isLoading = true
+        
+        do {
+            let session = try await client.auth.session
+            print("=== Existing Session Found ===")
+            print("User ID: \(session.user.id)")
+            print("Email: \(session.user.email ?? "N/A")")
+            print("Session expires at: \(session.expiresAt)")
+            print("==============================")
+            isAuthenticated = true
+        } catch {
+            print("No existing session: \(error.localizedDescription)")
+            isAuthenticated = false
+        }
+        
+        isLoading = false
+    }
+    
+    /// Signs out the current user and clears the session
+    func signOut() async {
+        do {
+            try await client.auth.signOut()
+            isAuthenticated = false
+            print("User signed out successfully")
+        } catch {
+            print("Sign out error: \(error.localizedDescription)")
+        }
     }
 }
 
-// MARK: - Authentication (Placeholder for future implementation)
+// MARK: - Authentication
 
 extension SupabaseManager {
-    // TODO: Add authentication methods
+    // Future authentication methods:
     // - signUp(email:password:)
     // - signIn(email:password:)
-    // - signOut()
     // - getCurrentUser()
     // - onAuthStateChange()
 }
