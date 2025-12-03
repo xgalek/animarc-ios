@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		74C01A7B2EDFCA1200FF8F00 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 74BE1A7B2EDB7654007406F9 /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		74BE1A5E2EDB7654007406F9 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				74C01A7B2EDFCA1200FF8F00 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = "Animarc IOS";
 			packageProductDependencies = (
+				74BE1A7B2EDB7654007406F9 /* Supabase */,
 			);
 			productName = "Animarc IOS";
 			productReference = 74BE1A502EDB7651007406F9 /* Animarc IOS.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = 74BE1A472EDB7651007406F9;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				74BE1A7A2EDB7654007406F9 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 74BE1A512EDB7651007406F9 /* Products */;
 			projectDirPath = "";
@@ -550,6 +559,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		74BE1A7A2EDB7654007406F9 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		74BE1A7B2EDB7654007406F9 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 74BE1A7A2EDB7654007406F9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 74BE1A482EDB7651007406F9 /* Project object */;
 }
