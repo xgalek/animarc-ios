@@ -9,9 +9,11 @@ import SwiftUI
 
 struct ProfileView: View {
     @Binding var navigationPath: NavigationPath
+    @EnvironmentObject var progressManager: UserProgressManager
     @Environment(\.dismiss) var dismiss
     @State private var notificationsEnabled = true
     @State private var soundsEnabled = true
+    @State private var sessionsToday: [FocusSession] = []
     
     var body: some View {
         ZStack {
@@ -23,39 +25,47 @@ struct ProfileView: View {
                 VStack(spacing: 24) {
                     // Top Section - Profile Card
                     VStack(spacing: 16) {
-                        // Circular avatar
+                        // Circular avatar with rank color
                         Circle()
-                            .fill(Color(hex: "#A770FF"))
+                            .fill(progressManager.currentRankInfo.swiftUIColor)
                             .frame(width: 100, height: 100)
-                            .shadow(color: Color(hex: "#A770FF").opacity(0.5), radius: 15, x: 0, y: 0)
+                            .shadow(color: progressManager.currentRankInfo.swiftUIColor.opacity(0.5), radius: 15, x: 0, y: 0)
                         
-                        // Username
-                        Text("Hunter")
+                        // Username / Display Name
+                        Text(progressManager.userProgress?.displayName ?? "Hunter")
                             .font(.system(size: 28, weight: .bold))
                             .foregroundColor(.white)
                         
                         // Rank and Level
                         HStack(spacing: 12) {
-                            Text("E-Rank")
+                            Text("\(progressManager.currentRank)-Rank")
                                 .font(.headline)
-                                .foregroundColor(Color(hex: "#FF9500"))
+                                .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
                             
                             Text("•")
                                 .font(.headline)
                                 .foregroundColor(Color(hex: "#9CA3AF"))
                             
-                            Text("Level 13")
+                            Text("Level \(progressManager.currentLevel)")
                                 .font(.headline)
                                 .foregroundColor(Color(hex: "#A770FF"))
                         }
                         
+                        // Rank Title
+                        Text(progressManager.currentRankInfo.title)
+                            .font(.subheadline)
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                        
                         // XP Progress Bar
                         VStack(spacing: 8) {
                             HStack {
-                                Text("2322 / 2500 XP")
+                                Text(progressManager.levelProgress.progressText)
                                     .font(.subheadline)
                                     .foregroundColor(Color(hex: "#9CA3AF"))
                                 Spacer()
+                                Text("\(Int(progressManager.levelProgress.progressPercent))%")
+                                    .font(.subheadline)
+                                    .foregroundColor(Color(hex: "#9CA3AF"))
                             }
                             
                             GeometryReader { geometry in
@@ -68,7 +78,7 @@ struct ProfileView: View {
                                     // Progress fill
                                     RoundedRectangle(cornerRadius: 8)
                                         .fill(Color(hex: "#22C55E"))
-                                        .frame(width: geometry.size.width * (2322.0 / 2500.0), height: 12)
+                                        .frame(width: geometry.size.width * (progressManager.levelProgress.progressPercent / 100.0), height: 12)
                                 }
                             }
                             .frame(height: 12)
@@ -79,7 +89,7 @@ struct ProfileView: View {
                         HStack(spacing: 6) {
                             Text("🔥")
                                 .font(.system(size: 20))
-                            Text("3 day streak")
+                            Text("\(progressManager.currentStreak) day streak")
                                 .font(.subheadline)
                                 .foregroundColor(.white)
                         }
@@ -99,14 +109,14 @@ struct ProfileView: View {
                             StatCard(
                                 icon: "clock.fill",
                                 label: "Total Focus Time",
-                                value: "24h 30m"
+                                value: progressManager.formattedTotalFocusTime
                             )
                             
                             // Sessions Today
                             StatCard(
                                 icon: "flame.fill",
                                 label: "Sessions Today",
-                                value: "3"
+                                value: "\(sessionsToday.count)"
                             )
                         }
                         
@@ -115,14 +125,30 @@ struct ProfileView: View {
                             StatCard(
                                 icon: "calendar",
                                 label: "Current Streak",
-                                value: "3 days"
+                                value: "\(progressManager.currentStreak) days"
                             )
                             
-                            // Achievements
+                            // Longest Streak
                             StatCard(
                                 icon: "trophy.fill",
-                                label: "Achievements",
-                                value: "12 earned"
+                                label: "Longest Streak",
+                                value: "\(progressManager.streak?.longestStreak ?? 0) days"
+                            )
+                        }
+                        
+                        HStack(spacing: 16) {
+                            // Total Sessions
+                            StatCard(
+                                icon: "checkmark.circle.fill",
+                                label: "Total Sessions",
+                                value: "\(progressManager.totalSessions)"
+                            )
+                            
+                            // Total XP
+                            StatCard(
+                                icon: "star.fill",
+                                label: "Total XP",
+                                value: "\(progressManager.totalXP)"
                             )
                         }
                     }
@@ -248,6 +274,9 @@ struct ProfileView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        .task {
+            sessionsToday = await progressManager.getSessionsToday()
+        }
     }
 }
 
@@ -310,6 +339,6 @@ struct SettingsRow: View {
 #Preview {
     NavigationStack {
         ProfileView(navigationPath: .constant(NavigationPath()))
+            .environmentObject(UserProgressManager.shared)
     }
 }
-

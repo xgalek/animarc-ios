@@ -34,6 +34,8 @@ extension UIColor {
 }
 
 struct MainTabView: View {
+    @EnvironmentObject var progressManager: UserProgressManager
+    
     init() {
         // Style the tab bar appearance
         let appearance = UITabBarAppearance()
@@ -62,12 +64,14 @@ struct MainTabView: View {
         TabView {
             // Home Tab
             HomeView()
+                .environmentObject(progressManager)
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
             
             // Stats Tab
             StatsView()
+                .environmentObject(progressManager)
                 .tabItem {
                     Label("Stats", systemImage: "chart.bar.fill")
                 }
@@ -75,6 +79,7 @@ struct MainTabView: View {
             // Profile Tab
             NavigationStack {
                 ProfileView(navigationPath: .constant(NavigationPath()))
+                    .environmentObject(progressManager)
             }
             .tabItem {
                 Label("Profile", systemImage: "person.fill")
@@ -86,5 +91,5 @@ struct MainTabView: View {
 
 #Preview {
     MainTabView()
+        .environmentObject(UserProgressManager.shared)
 }
-

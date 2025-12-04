@@ -62,6 +62,7 @@ struct GIFImageView: UIViewRepresentable {
 }
 
 struct HomeView: View {
+    @EnvironmentObject var progressManager: UserProgressManager
     @State private var navigationPath = NavigationPath()
     
     var body: some View {
@@ -74,11 +75,11 @@ struct HomeView: View {
                 VStack(spacing: 0) {
                 // Top Status Bar
                 HStack {
-                    // Fire emoji and number
+                    // Fire emoji and streak number
                     HStack(spacing: 4) {
                         Text("🔥")
                             .font(.system(size: 20))
-                        Text("3")
+                        Text("\(progressManager.currentStreak)")
                             .font(.headline)
                             .foregroundColor(.white)
                     }
@@ -87,19 +88,19 @@ struct HomeView: View {
                     
                     // Stats text with different colors
                     HStack(spacing: 4) {
-                        Text("E-Rank")
+                        Text("\(progressManager.currentRank)-Rank")
                             .font(.headline)
-                            .foregroundColor(Color(hex: "#FF9500"))
+                            .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
                         Text("|")
                             .font(.headline)
                             .foregroundColor(Color(hex: "#9CA3AF"))
-                        Text("LVL 13")
+                        Text("LVL \(progressManager.currentLevel)")
                             .font(.headline)
                             .foregroundColor(Color(hex: "#A770FF"))
                         Text("|")
                             .font(.headline)
                             .foregroundColor(Color(hex: "#9CA3AF"))
-                        Text("2322 xp")
+                        Text("\(progressManager.totalXP) xp")
                             .font(.headline)
                             .foregroundColor(Color(hex: "#22C55E"))
                     }
@@ -167,18 +168,15 @@ struct HomeView: View {
             .navigationDestination(for: String.self) { destination in
                 if destination == "FocusSession" {
                     FocusSessionView(navigationPath: $navigationPath)
+                        .environmentObject(progressManager)
                 } else if destination == "Profile" {
                     ProfileView(navigationPath: $navigationPath)
+                        .environmentObject(progressManager)
                 } else if destination.hasPrefix("Reward-") {
                     let durationStr = destination.replacingOccurrences(of: "Reward-", with: "")
                     let duration = Int(durationStr) ?? 0
                     RewardView(sessionDuration: duration, navigationPath: $navigationPath)
-                }
-            }
-            .onAppear {
-                // Test Supabase connection when the app loads
-                Task {
-                    await SupabaseManager.shared.testConnection()
+                        .environmentObject(progressManager)
                 }
             }
         }
@@ -187,5 +185,5 @@ struct HomeView: View {
 
 #Preview {
     HomeView()
+        .environmentObject(UserProgressManager.shared)
 }
-

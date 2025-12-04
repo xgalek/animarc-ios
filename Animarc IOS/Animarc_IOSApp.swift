@@ -10,6 +10,7 @@ import SwiftUI
 @main
 struct Animarc_IOSApp: App {
     @StateObject private var supabaseManager = SupabaseManager.shared
+    @StateObject private var progressManager = UserProgressManager.shared
     
     var body: some Scene {
         WindowGroup {
@@ -31,12 +32,23 @@ struct Animarc_IOSApp: App {
                     }
                 } else if supabaseManager.isAuthenticated {
                     MainTabView()
+                        .environmentObject(progressManager)
+                        .task {
+                            // Load user progress after authentication
+                            await progressManager.loadProgress()
+                        }
                 } else {
                     AuthView(isAuthenticated: $supabaseManager.isAuthenticated)
                 }
             }
             .task {
                 await supabaseManager.checkExistingSession()
+            }
+            .onChange(of: supabaseManager.isAuthenticated) { _, isAuthenticated in
+                if !isAuthenticated {
+                    // Clear progress data on sign out
+                    progressManager.clearData()
+                }
             }
         }
     }

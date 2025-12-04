@@ -9,6 +9,7 @@ import SwiftUI
 
 struct FocusSessionView: View {
     @Binding var navigationPath: NavigationPath
+    @EnvironmentObject var progressManager: UserProgressManager
     @Environment(\.dismiss) var dismiss
     @State private var elapsedTime: Int = 0
     @State private var timer: Timer?
@@ -64,6 +65,7 @@ struct FocusSessionView: View {
                 // Bottom Section
                 Button(action: {
                     stopTimer()
+                    // Pass elapsed time in seconds to RewardView
                     navigationPath.append("Reward-\(elapsedTime)")
                 }) {
                     Text("END SESSION")
@@ -110,6 +112,6 @@ struct FocusSessionView: View {
 #Preview {
     NavigationStack {
         FocusSessionView(navigationPath: .constant(NavigationPath()))
+            .environmentObject(UserProgressManager.shared)
     }
 }
-
