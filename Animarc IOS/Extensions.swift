@@ -34,3 +34,22 @@ extension Color {
     }
 }
 
+// Avatar Button Component
+struct AvatarButton: View {
+    @Binding var showProfile: Bool
+    
+    var body: some View {
+        Button(action: {
+            showProfile = true
+        }) {
+            Image(systemName: "person.fill")
+                .font(.system(size: 18))
+                .foregroundColor(.white)
+                .frame(width: 40, height: 40)
+                .background(Color(hex: "#374151").opacity(0.8))
+                .clipShape(Circle())
+                .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+        }
+    }
+}
+

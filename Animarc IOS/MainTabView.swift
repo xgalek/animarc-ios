@@ -76,14 +76,12 @@ struct MainTabView: View {
                     Label("Stats", systemImage: "chart.bar.fill")
                 }
             
-            // Profile Tab
-            NavigationStack {
-                ProfileView(navigationPath: .constant(NavigationPath()))
-                    .environmentObject(progressManager)
-            }
-            .tabItem {
-                Label("Profile", systemImage: "person.fill")
-            }
+            // Character Tab
+            CharacterView()
+                .environmentObject(progressManager)
+                .tabItem {
+                    Label("Character", systemImage: "sparkles")
+                }
         }
         .tint(Color(hex: "#8B5CF6"))
     }

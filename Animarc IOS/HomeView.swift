@@ -64,6 +64,7 @@ struct GIFImageView: UIViewRepresentable {
 struct HomeView: View {
     @EnvironmentObject var progressManager: UserProgressManager
     @State private var navigationPath = NavigationPath()
+    @State private var showProfile = false
     
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -107,14 +108,8 @@ struct HomeView: View {
                     
                     Spacer()
                     
-                    // Settings icon
-                    Button(action: {
-                        navigationPath.append("Profile")
-                    }) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 20))
-                            .foregroundColor(.white)
-                    }
+                    // Avatar button
+                    AvatarButton(showProfile: $showProfile)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -169,13 +164,16 @@ struct HomeView: View {
                 if destination == "FocusSession" {
                     FocusSessionView(navigationPath: $navigationPath)
                         .environmentObject(progressManager)
-                } else if destination == "Profile" {
-                    ProfileView(navigationPath: $navigationPath)
-                        .environmentObject(progressManager)
                 } else if destination.hasPrefix("Reward-") {
                     let durationStr = destination.replacingOccurrences(of: "Reward-", with: "")
                     let duration = Int(durationStr) ?? 0
                     RewardView(sessionDuration: duration, navigationPath: $navigationPath)
+                        .environmentObject(progressManager)
+                }
+            }
+            .sheet(isPresented: $showProfile) {
+                NavigationStack {
+                    ProfileView(navigationPath: .constant(NavigationPath()))
                         .environmentObject(progressManager)
                 }
             }

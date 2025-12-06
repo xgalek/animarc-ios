@@ -23,82 +23,13 @@ struct ProfileView: View {
             
             ScrollView {
                 VStack(spacing: 24) {
-                    // Top Section - Profile Card
-                    VStack(spacing: 16) {
-                        // Circular avatar with rank color
-                        Circle()
-                            .fill(progressManager.currentRankInfo.swiftUIColor)
-                            .frame(width: 100, height: 100)
-                            .shadow(color: progressManager.currentRankInfo.swiftUIColor.opacity(0.5), radius: 15, x: 0, y: 0)
-                        
-                        // Username / Display Name
-                        Text(progressManager.userProgress?.displayName ?? "Hunter")
-                            .font(.system(size: 28, weight: .bold))
+                    // Top Section - Title
+                    HStack {
+                        Text("Settings")
+                            .font(.system(size: 32, weight: .bold))
                             .foregroundColor(.white)
-                        
-                        // Rank and Level
-                        HStack(spacing: 12) {
-                            Text("\(progressManager.currentRank)-Rank")
-                                .font(.headline)
-                                .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
-                            
-                            Text("•")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "#9CA3AF"))
-                            
-                            Text("Level \(progressManager.currentLevel)")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "#A770FF"))
-                        }
-                        
-                        // Rank Title
-                        Text(progressManager.currentRankInfo.title)
-                            .font(.subheadline)
-                            .foregroundColor(Color(hex: "#9CA3AF"))
-                        
-                        // XP Progress Bar
-                        VStack(spacing: 8) {
-                            HStack {
-                                Text(progressManager.levelProgress.progressText)
-                                    .font(.subheadline)
-                                    .foregroundColor(Color(hex: "#9CA3AF"))
-                                Spacer()
-                                Text("\(Int(progressManager.levelProgress.progressPercent))%")
-                                    .font(.subheadline)
-                                    .foregroundColor(Color(hex: "#9CA3AF"))
-                            }
-                            
-                            GeometryReader { geometry in
-                                ZStack(alignment: .leading) {
-                                    // Background
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(hex: "#9CA3AF").opacity(0.3))
-                                        .frame(height: 12)
-                                    
-                                    // Progress fill
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(hex: "#22C55E"))
-                                        .frame(width: geometry.size.width * (progressManager.levelProgress.progressPercent / 100.0), height: 12)
-                                }
-                            }
-                            .frame(height: 12)
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        // Streak
-                        HStack(spacing: 6) {
-                            Text("🔥")
-                                .font(.system(size: 20))
-                            Text("\(progressManager.currentStreak) day streak")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
-                        }
-                        .padding(.top, 4)
+                        Spacer()
                     }
-                    .padding(.vertical, 24)
-                    .padding(.horizontal, 20)
-                    .background(Color(hex: "#374151"))
-                    .cornerRadius(20)
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
                     

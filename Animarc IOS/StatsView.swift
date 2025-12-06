@@ -28,134 +28,148 @@ struct StatsView: View {
     @State private var displayedSessions: [FocusSession] = []
     @State private var stats: (totalMinutes: Int, totalXP: Int, avgMinutes: Int, longestMinutes: Int) = (0, 0, 0, 0)
     @State private var isLoading = true
+    @State private var showProfile = false
     
     var body: some View {
-        ZStack {
-            // Background
-            Color(hex: "#1A2332")
-                .ignoresSafeArea()
-            
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Top Section - Title
-                    HStack {
-                        Text("Statistics")
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(.white)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    
-                    // Time Period Selector
-                    HStack(spacing: 12) {
-                        ForEach(TimePeriod.allCases, id: \.self) { period in
-                            Button(action: {
-                                selectedPeriod = period
-                                Task {
-                                    await loadDataForPeriod()
-                                }
-                            }) {
-                                Text(period.rawValue)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(selectedPeriod == period ? .white : Color(hex: "#9CA3AF"))
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        selectedPeriod == period
-                                            ? Color(hex: "#8B5CF6")
-                                            : Color.clear
-                                    )
-                                    .cornerRadius(8)
-                            }
+        NavigationStack {
+            ZStack {
+                // Background
+                Color(hex: "#1A2332")
+                    .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Top Section - Title
+                        HStack {
+                            Text("Statistics")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(.white)
+                            Spacer()
                         }
-                    }
-                    .padding(.horizontal, 20)
-                    
-                    // Key Metrics Section
-                    if isLoading {
-                        ProgressView()
-                            .tint(.white)
-                            .padding(.vertical, 40)
-                    } else {
-                        VStack(alignment: .leading, spacing: 16) {
-                            LazyVGrid(columns: [
-                                GridItem(.flexible(), spacing: 12),
-                                GridItem(.flexible(), spacing: 12)
-                            ], spacing: 12) {
-                                MetricCard(title: "Total Focus Time", value: formatMinutes(stats.totalMinutes))
-                                MetricCard(title: "Total Sessions", value: "\(displayedSessions.count)")
-                                MetricCard(title: "Average Session", value: "\(stats.avgMinutes) min")
-                                MetricCard(title: "Longest Session", value: formatMinutes(stats.longestMinutes))
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        
+                        // Time Period Selector
+                        HStack(spacing: 12) {
+                            ForEach(TimePeriod.allCases, id: \.self) { period in
+                                Button(action: {
+                                    selectedPeriod = period
+                                    Task {
+                                        await loadDataForPeriod()
+                                    }
+                                }) {
+                                    Text(period.rawValue)
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(selectedPeriod == period ? .white : Color(hex: "#9CA3AF"))
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            selectedPeriod == period
+                                                ? Color(hex: "#8B5CF6")
+                                                : Color.clear
+                                        )
+                                        .cornerRadius(8)
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
                         
-                        // Chart Section (only for Week view)
-                        if selectedPeriod == .week && !chartData.isEmpty {
+                        // Key Metrics Section
+                        if isLoading {
+                            ProgressView()
+                                .tint(.white)
+                                .padding(.vertical, 40)
+                        } else {
                             VStack(alignment: .leading, spacing: 16) {
-                                Text("This Week")
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible(), spacing: 12),
+                                    GridItem(.flexible(), spacing: 12)
+                                ], spacing: 12) {
+                                    MetricCard(title: "Total Focus Time", value: formatMinutes(stats.totalMinutes))
+                                    MetricCard(title: "Total Sessions", value: "\(displayedSessions.count)")
+                                    MetricCard(title: "Average Session", value: "\(stats.avgMinutes) min")
+                                    MetricCard(title: "Longest Session", value: formatMinutes(stats.longestMinutes))
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            
+                            // Chart Section (only for Week view)
+                            if selectedPeriod == .week && !chartData.isEmpty {
+                                VStack(alignment: .leading, spacing: 16) {
+                                    Text("This Week")
+                                        .font(.system(size: 20, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 20)
+                                    
+                                    Chart(chartData) { data in
+                                        BarMark(
+                                            x: .value("Day", data.day),
+                                            y: .value("Hours", data.hours)
+                                        )
+                                        .foregroundStyle(Color(hex: "#22C55E"))
+                                        .cornerRadius(4)
+                                    }
+                                    .frame(height: 200)
+                                    .chartXAxis {
+                                        AxisMarks(values: .automatic) { _ in
+                                            AxisValueLabel()
+                                                .foregroundStyle(.white.opacity(0.7))
+                                                .font(.system(size: 12))
+                                        }
+                                    }
+                                    .chartYAxis {
+                                        AxisMarks(position: .leading, values: .automatic) { _ in
+                                            AxisValueLabel()
+                                                .foregroundStyle(.white.opacity(0.7))
+                                                .font(.system(size: 12))
+                                            AxisGridLine()
+                                                .foregroundStyle(.white.opacity(0.1))
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
+                                }
+                            }
+                            
+                            // Recent Sessions Section
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Recent Sessions")
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 20)
                                 
-                                Chart(chartData) { data in
-                                    BarMark(
-                                        x: .value("Day", data.day),
-                                        y: .value("Hours", data.hours)
-                                    )
-                                    .foregroundStyle(Color(hex: "#22C55E"))
-                                    .cornerRadius(4)
-                                }
-                                .frame(height: 200)
-                                .chartXAxis {
-                                    AxisMarks(values: .automatic) { _ in
-                                        AxisValueLabel()
-                                            .foregroundStyle(.white.opacity(0.7))
-                                            .font(.system(size: 12))
+                                if displayedSessions.isEmpty {
+                                    Text("No sessions yet")
+                                        .font(.subheadline)
+                                        .foregroundColor(Color(hex: "#9CA3AF"))
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 40)
+                                } else {
+                                    VStack(spacing: 12) {
+                                        ForEach(displayedSessions.prefix(10)) { session in
+                                            SessionRow(
+                                                date: formatSessionDate(session.completedAt),
+                                                duration: formatSessionDuration(session.durationMinutes),
+                                                xp: session.xpEarned
+                                            )
+                                        }
                                     }
-                                }
-                                .chartYAxis {
-                                    AxisMarks(position: .leading, values: .automatic) { _ in
-                                        AxisValueLabel()
-                                            .foregroundStyle(.white.opacity(0.7))
-                                            .font(.system(size: 12))
-                                        AxisGridLine()
-                                            .foregroundStyle(.white.opacity(0.1))
-                                    }
-                                }
-                                .padding(.horizontal, 20)
-                            }
-                        }
-                        
-                        // Recent Sessions Section
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Recent Sessions")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 20)
-                            
-                            if displayedSessions.isEmpty {
-                                Text("No sessions yet")
-                                    .font(.subheadline)
-                                    .foregroundColor(Color(hex: "#9CA3AF"))
                                     .padding(.horizontal, 20)
-                                    .padding(.vertical, 40)
-                            } else {
-                                VStack(spacing: 12) {
-                                    ForEach(displayedSessions.prefix(10)) { session in
-                                        SessionRow(
-                                            date: formatSessionDate(session.completedAt),
-                                            duration: formatSessionDuration(session.durationMinutes),
-                                            xp: session.xpEarned
-                                        )
-                                    }
                                 }
-                                .padding(.horizontal, 20)
                             }
+                            .padding(.bottom, 40)
                         }
-                        .padding(.bottom, 40)
                     }
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    AvatarButton(showProfile: $showProfile)
+                }
+            }
+            .sheet(isPresented: $showProfile) {
+                NavigationStack {
+                    ProfileView(navigationPath: .constant(NavigationPath()))
+                        .environmentObject(progressManager)
                 }
             }
         }
