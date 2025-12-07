@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // Color extension for hex color support
 extension Color {
@@ -32,6 +33,60 @@ extension Color {
             opacity: Double(a) / 255
         )
     }
+}
+
+// UIImage extension for GIF loading
+extension UIImage {
+    static func gifImageWithData(_ data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return nil
+        }
+        
+        let count = CGImageSourceGetCount(source)
+        var images: [UIImage] = []
+        var duration: Double = 0
+        
+        for i in 0..<count {
+            if let cgImage = CGImageSourceCreateImageAtIndex(source, i, nil) {
+                let image = UIImage(cgImage: cgImage)
+                images.append(image)
+                
+                if let properties = CGImageSourceCopyPropertiesAtIndex(source, i, nil) as? [String: Any],
+                   let gifProperties = properties[kCGImagePropertyGIFDictionary as String] as? [String: Any],
+                   let delayTime = gifProperties[kCGImagePropertyGIFDelayTime as String] as? Double {
+                    duration += delayTime
+                } else {
+                    duration += 0.1 // Default delay if not specified
+                }
+            }
+        }
+        
+        return UIImage.animatedImage(with: images, duration: duration)
+    }
+}
+
+// UIViewRepresentable wrapper for GIF animation
+struct GIFImageView: UIViewRepresentable {
+    let gifName: String
+    var contentMode: UIView.ContentMode = .scaleAspectFit
+    
+    func makeUIView(context: Context) -> UIImageView {
+        let imageView = UIImageView()
+        imageView.contentMode = contentMode
+        imageView.clipsToBounds = true
+        
+        // Load GIF from bundle
+        if let path = Bundle.main.path(forResource: gifName, ofType: "gif"),
+           let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+           let image = UIImage.gifImageWithData(data) {
+            imageView.image = image
+            imageView.startAnimating()
+        }
+        
+        return imageView
+    }
+    
+    func updateUIView(_ uiView: UIImageView, context: Context) {}
 }
 
 // Avatar Button Component

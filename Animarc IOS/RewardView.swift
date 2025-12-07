@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct RewardView: View {
     let sessionDuration: Int  // Duration in seconds
@@ -21,8 +22,14 @@ struct RewardView: View {
     
     var body: some View {
         ZStack {
-            // Background
-            Color(hex: "#1A2332")
+            // Animated GIF Background
+            GIFImageView(gifName: "Animation_camp", contentMode: .scaleAspectFill)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .ignoresSafeArea()
+            
+            // Semi-transparent overlay for text readability
+            Color.black.opacity(0.4)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
