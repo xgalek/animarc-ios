@@ -16,6 +16,8 @@ struct RewardView: View {
     @State private var isProcessing = true
     @State private var showLevelUp = false
     @State private var showRankUp = false
+    @State private var droppedItem: PortalItem?
+    @State private var isLoadingItem = false
     
     var body: some View {
         ZStack {
@@ -137,8 +139,65 @@ struct RewardView: View {
                             .padding(.horizontal, 30)
                         }
                         
-                        // Celebratory icon (if no level/rank up)
-                        if sessionReward?.didLevelUp != true && sessionReward?.didRankUp != true {
+                        // Item Drop indicator
+                        if let item = droppedItem {
+                            VStack(spacing: 12) {
+                                Text("🎁 NEW ITEM UNLOCKED!")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(Color(hex: "#FFD700"))
+                                
+                                // Rank badge
+                                Text("\(item.rolledRank)-RANK")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(item.rankColor)
+                                    .cornerRadius(8)
+                                
+                                AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                                    switch phase {
+                                    case .empty:
+                                        ProgressView()
+                                            .tint(.white)
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                            .frame(width: 60, height: 60)
+                                    case .failure:
+                                        Image(systemName: "gift.fill")
+                                            .font(.system(size: 60))
+                                            .foregroundColor(Color(hex: "#9CA3AF"))
+                                    @unknown default:
+                                        EmptyView()
+                                    }
+                                }
+                                
+                                Text(item.name)
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                
+                                Text("+\(item.statValue) \(item.statType)")
+                                    .font(.subheadline)
+                                    .foregroundColor(item.rankColor)
+                            }
+                            .padding(.vertical, 16)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(hex: "#FFD700").opacity(0.2), Color(hex: "#FFA500").opacity(0.2)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .cornerRadius(12)
+                            .padding(.horizontal, 30)
+                        }
+                        
+                        // Celebratory icon (if no level/rank up/item drop)
+                        if sessionReward?.didLevelUp != true && sessionReward?.didRankUp != true && droppedItem == nil {
                             Image(systemName: "trophy.fill")
                                 .font(.system(size: 60))
                                 .foregroundColor(Color(hex: "#FFD700"))
@@ -199,7 +258,31 @@ struct RewardView: View {
         // Award XP and get result
         sessionReward = await progressManager.awardXP(durationMinutes: minutes)
         
+        // Try to drop item (checks eligibility internally)
+        isLoadingItem = true
+        if let userId = await getCurrentUserId() {
+            do {
+                droppedItem = try await SupabaseManager.shared.dropRandomItem(
+                    userId: userId,
+                    userRank: progressManager.currentRank
+                )
+            } catch {
+                print("Failed to drop item: \(error)")
+            }
+        }
+        isLoadingItem = false
+        
         isProcessing = false
+    }
+    
+    private func getCurrentUserId() async -> UUID? {
+        do {
+            let session = try await SupabaseManager.shared.client.auth.session
+            return session.user.id
+        } catch {
+            print("Failed to get user ID: \(error)")
+            return nil
+        }
     }
     
     private var formattedDuration: String {

@@ -7,18 +7,11 @@
 
 import SwiftUI
 
-struct InventoryItem: Identifiable {
-    let id = UUID()
-    let icon: String
-    let name: String
-    let isEmpty: Bool
-}
-
 struct CharacterView: View {
     @EnvironmentObject var progressManager: UserProgressManager
     @State private var showProfile = false
     @State private var showChallengeAlert = false
-    @State private var selectedItem: InventoryItem?
+    @State private var selectedPortalItem: PortalItem?
     @State private var showStatAllocation = false
     
     // Stat allocation system
@@ -34,17 +27,17 @@ struct CharacterView: View {
     @State private var originalStats: [String: Int] = [:]
     private let minStatValue = 10
     
-    // Dummy inventory data
-    @State private var inventoryItems: [InventoryItem] = [
-        InventoryItem(icon: "⚔️", name: "Iron Sword", isEmpty: false),
-        InventoryItem(icon: "🛡️", name: "Wood Shield", isEmpty: false),
-        InventoryItem(icon: "", name: "", isEmpty: true),
-        InventoryItem(icon: "", name: "", isEmpty: true),
-        InventoryItem(icon: "", name: "", isEmpty: true),
-        InventoryItem(icon: "", name: "", isEmpty: true),
-        InventoryItem(icon: "", name: "", isEmpty: true),
-        InventoryItem(icon: "", name: "", isEmpty: true)
-    ]
+    // Real inventory data
+    @State private var inventory: PortalInventory?
+    @State private var isLoadingInventory = false
+    @State private var inventoryError: String?
+    
+    // Inventory popup state
+    @State private var showInventoryPopup = false
+    @State private var selectedRankFilter: String = "ALL"
+    @State private var showUnequipConfirm = false
+    @State private var showSlotFullAlert = false
+    @State private var selectedItemForAction: PortalItem?
     
     var body: some View {
         NavigationStack {
@@ -187,26 +180,81 @@ struct CharacterView: View {
                         }
                         .padding(.horizontal, 20)
                         
-                        // Inventory Section
+                        // Equipped Items Section
                         VStack(alignment: .leading, spacing: 16) {
-                            Text("INVENTORY")
+                            Text("EQUIPPED ITEMS")
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 20)
                             
-                            LazyVGrid(columns: [
-                                GridItem(.flexible(), spacing: 12),
-                                GridItem(.flexible(), spacing: 12)
-                            ], spacing: 12) {
-                                ForEach(inventoryItems) { item in
-                                    InventorySlot(item: item)
-                                        .onTapGesture {
-                                            selectedItem = item
-                                        }
+                            if isLoadingInventory {
+                                HStack {
+                                    Spacer()
+                                    ProgressView()
+                                        .tint(.white)
+                                    Spacer()
                                 }
+                                .padding(.vertical, 40)
+                            } else if let error = inventoryError {
+                                VStack(spacing: 12) {
+                                    Text("Failed to load inventory")
+                                        .font(.subheadline)
+                                        .foregroundColor(.red)
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundColor(Color(hex: "#9CA3AF"))
+                                    Button("Retry") {
+                                        Task {
+                                            await loadInventory()
+                                        }
+                                    }
+                                    .font(.subheadline)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color(hex: "#6B46C1"))
+                                    .cornerRadius(8)
+                                }
+                                .padding(.vertical, 40)
+                            } else {
+                                let equippedItems = (inventory?.items ?? []).filter { $0.equipped }
+                                let emptySlots = max(0, 8 - equippedItems.count)
+                                
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible(), spacing: 8),
+                                    GridItem(.flexible(), spacing: 8),
+                                    GridItem(.flexible(), spacing: 8),
+                                    GridItem(.flexible(), spacing: 8)
+                                ], spacing: 8) {
+                                    // Show equipped items
+                                    ForEach(equippedItems) { item in
+                                        EquippedSlot(item: item)
+                                    }
+                                    
+                                    // Show empty slots
+                                    ForEach(0..<emptySlots, id: \.self) { _ in
+                                        EmptySlot {
+                                            showInventoryPopup = true
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 20)
                             }
-                            .padding(.horizontal, 20)
                         }
+                        
+                        // Manage Inventory Button
+                        Button(action: {
+                            showInventoryPopup = true
+                        }) {
+                            Text("MANAGE INVENTORY")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(Color(hex: "#F59E0B"))
+                                .cornerRadius(12)
+                        }
+                        .padding(.horizontal, 20)
                         
                         // Challenge Button
                         Button(action: {
@@ -241,12 +289,26 @@ struct CharacterView: View {
             .alert("Coming Soon!", isPresented: $showChallengeAlert) {
                 Button("OK", role: .cancel) { }
             }
-            .alert(item: $selectedItem) { item in
-                Alert(
-                    title: Text(item.isEmpty ? "Empty Slot" : item.name),
-                    message: Text(item.isEmpty ? "This slot is empty" : "You have \(item.name)"),
-                    dismissButton: .default(Text("OK"))
-                )
+            .alert("Unequip Item?", isPresented: $showUnequipConfirm) {
+                Button("Cancel", role: .cancel) {
+                    selectedItemForAction = nil
+                }
+                Button("Unequip", role: .destructive) {
+                    if let item = selectedItemForAction {
+                        Task {
+                            await unequipItem(item)
+                        }
+                    }
+                    selectedItemForAction = nil
+                }
+            }
+            .alert("Inventory Full", isPresented: $showSlotFullAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("You have 8/8 equipment slots filled. Unequip an item first.")
+            }
+            .task {
+                await loadInventory()
             }
             .sheet(isPresented: $showStatAllocation) {
                 StatAllocationSheet(
@@ -261,6 +323,118 @@ struct CharacterView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showInventoryPopup) {
+                InventoryPopupView(
+                    inventory: $inventory,
+                    selectedRankFilter: $selectedRankFilter,
+                    onItemTap: { item in
+                        handleInventoryItemTap(item)
+                    },
+                    onDismiss: {
+                        showInventoryPopup = false
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+        }
+    }
+    
+    // MARK: - Inventory Loading
+    
+    /// Load user's portal inventory from Supabase
+    private func loadInventory() async {
+        guard let userId = await getCurrentUserId() else {
+            print("CharacterView: No authenticated user")
+            inventoryError = "Not authenticated"
+            return
+        }
+        
+        isLoadingInventory = true
+        inventoryError = nil
+        
+        do {
+            inventory = try await SupabaseManager.shared.fetchOrCreateInventory(userId: userId)
+            print("CharacterView: Loaded inventory with \(inventory?.items.count ?? 0) items")
+        } catch {
+            print("CharacterView: Failed to load inventory: \(error)")
+            inventoryError = error.localizedDescription
+            inventory = nil
+        }
+        
+        isLoadingInventory = false
+    }
+    
+    /// Get current authenticated user ID
+    private func getCurrentUserId() async -> UUID? {
+        do {
+            let session = try await SupabaseManager.shared.client.auth.session
+            return session.user.id
+        } catch {
+            print("CharacterView: Failed to get user ID: \(error)")
+            return nil
+        }
+    }
+    
+    /// Handle tap on inventory item in popup
+    private func handleInventoryItemTap(_ item: PortalItem) {
+        if item.equipped {
+            // Show unequip confirmation
+            selectedItemForAction = item
+            showUnequipConfirm = true
+        } else {
+            // Try to equip
+            Task {
+                await equipItem(item)
+            }
+        }
+    }
+    
+    /// Equip an item
+    private func equipItem(_ item: PortalItem) async {
+        guard let userId = await getCurrentUserId() else {
+            print("CharacterView: No authenticated user")
+            return
+        }
+        
+        do {
+            // Check if already at 8 equipped items
+            let equippedCount = try await SupabaseManager.shared.getEquippedItemCount(userId: userId)
+            if equippedCount >= 8 {
+                showSlotFullAlert = true
+                return
+            }
+            
+            // Equip the item
+            let updatedInventory = try await SupabaseManager.shared.updateItemEquippedStatus(
+                userId: userId,
+                itemId: item.id,
+                equipped: true
+            )
+            
+            inventory = updatedInventory
+        } catch {
+            print("CharacterView: Failed to equip item: \(error)")
+        }
+    }
+    
+    /// Unequip an item
+    private func unequipItem(_ item: PortalItem) async {
+        guard let userId = await getCurrentUserId() else {
+            print("CharacterView: No authenticated user")
+            return
+        }
+        
+        do {
+            let updatedInventory = try await SupabaseManager.shared.updateItemEquippedStatus(
+                userId: userId,
+                itemId: item.id,
+                equipped: false
+            )
+            
+            inventory = updatedInventory
+        } catch {
+            print("CharacterView: Failed to unequip item: \(error)")
         }
     }
 }
@@ -455,31 +629,295 @@ struct StatRowWithControls: View {
 }
 
 struct InventorySlot: View {
-    let item: InventoryItem
+    let item: PortalItem
     
     var body: some View {
         VStack(spacing: 8) {
-            if item.isEmpty {
-                Image(systemName: "plus")
-                    .font(.system(size: 24))
-                    .foregroundColor(Color(hex: "#9CA3AF"))
-                Text("Empty")
-                    .font(.caption)
-                    .foregroundColor(Color(hex: "#9CA3AF"))
-            } else {
-                Text(item.icon)
-                    .font(.system(size: 40))
-                Text(item.name)
-                    .font(.caption)
+            // Item icon with rank badge
+            ZStack(alignment: .topTrailing) {
+                AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .tint(.white)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 50, height: 50)
+                    case .failure:
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 40))
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+                
+                // Rank badge
+                Text(item.rolledRank)
+                    .font(.caption2)
+                    .fontWeight(.bold)
                     .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(item.rankColor)
+                    .cornerRadius(4)
+                    .offset(x: 5, y: -5)
+                
+                // Equipped checkmark overlay
+                if item.equipped {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(Color(hex: "#22C55E"))
+                        .background(Color.white)
+                        .clipShape(Circle())
+                        .offset(x: -5, y: -5)
+                }
             }
+            
+            // Item name
+            Text(item.name)
+                .font(.caption)
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+            
+            // Show rank + stat value
+            Text("\(item.rolledRank) | +\(item.statValue) \(item.statType)")
+                .font(.caption2)
+                .foregroundColor(item.rankColor)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 120)
         .padding(16)
-        .background(Color(hex: "#243447"))
+        .background(item.equipped ? Color(hex: "#243447").opacity(0.8) : Color(hex: "#243447"))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(item.equipped ? Color(hex: "#22C55E") : item.rankColor.opacity(0.5), lineWidth: 2)
+        )
         .cornerRadius(12)
+    }
+}
+
+struct EquippedSlot: View {
+    let item: PortalItem
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            // Item icon with rank badge
+            ZStack(alignment: .topTrailing) {
+                AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .tint(.white)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 35, height: 35)
+                    case .failure:
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 30))
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+                
+                // Rank badge
+                Text(item.rolledRank)
+                    .font(.system(size: 8))
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(item.rankColor)
+                    .cornerRadius(3)
+                    .offset(x: 3, y: -3)
+            }
+            
+            // Item name
+            Text(item.name)
+                .font(.system(size: 10))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+            
+            // Stat bonus
+            Text("+\(item.statValue) \(item.statType)")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(item.rankColor)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 90)
+        .padding(10)
+        .background(Color(hex: "#243447"))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color(hex: "#22C55E"), lineWidth: 2)
+        )
+        .cornerRadius(10)
+    }
+}
+
+struct EmptySlot: View {
+    let onTap: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "plus")
+                .font(.system(size: 24))
+                .foregroundColor(Color(hex: "#9CA3AF"))
+            
+            Text("Empty")
+                .font(.system(size: 10))
+                .foregroundColor(Color(hex: "#9CA3AF"))
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 90)
+        .padding(10)
+        .background(Color(hex: "#374151"))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color(hex: "#9CA3AF").opacity(0.3), lineWidth: 1)
+        )
+        .cornerRadius(10)
+        .onTapGesture {
+            onTap()
+        }
+    }
+}
+
+struct InventoryPopupView: View {
+    @Binding var inventory: PortalInventory?
+    @Binding var selectedRankFilter: String
+    let onItemTap: (PortalItem) -> Void
+    let onDismiss: () -> Void
+    
+    private let rankFilters = ["ALL", "E", "D", "C", "B", "A", "S"]
+    
+    private var filteredItems: [PortalItem] {
+        guard let inventory = inventory else { return [] }
+        let items = inventory.items
+        
+        if selectedRankFilter == "ALL" {
+            return items
+        } else {
+            return items.filter { $0.rolledRank == selectedRankFilter }
+        }
+    }
+    
+    var body: some View {
+        ZStack {
+            // Background
+            Color(hex: "#1A2332")
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Top bar with title and X button
+                HStack {
+                    Text("INVENTORY")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        onDismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                            .background(Color(hex: "#374151"))
+                            .clipShape(Circle())
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 16)
+                
+                Divider()
+                    .background(Color(hex: "#9CA3AF").opacity(0.3))
+                
+                // Rank filter tabs
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(rankFilters, id: \.self) { rank in
+                            Button(action: {
+                                selectedRankFilter = rank
+                            }) {
+                                Text(rank)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(selectedRankFilter == rank ? .white : Color(hex: "#9CA3AF"))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        selectedRankFilter == rank
+                                            ? (rank == "ALL" ? Color(hex: "#6B46C1") : getRankColor(rank))
+                                            : Color(hex: "#374151")
+                                    )
+                                    .cornerRadius(20)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                }
+                
+                Divider()
+                    .background(Color(hex: "#9CA3AF").opacity(0.3))
+                
+                // Items grid
+                ScrollView {
+                    let items = filteredItems
+                    if items.isEmpty {
+                        VStack(spacing: 8) {
+                            Text("No items")
+                                .font(.subheadline)
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                            Text(selectedRankFilter == "ALL" 
+                                 ? "Complete portal sessions to earn items!"
+                                 : "No \(selectedRankFilter)-rank items")
+                                .font(.caption)
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 60)
+                    } else {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(), spacing: 8),
+                            GridItem(.flexible(), spacing: 8),
+                            GridItem(.flexible(), spacing: 8),
+                            GridItem(.flexible(), spacing: 8)
+                        ], spacing: 8) {
+                            ForEach(items) { item in
+                                InventorySlot(item: item)
+                                    .onTapGesture {
+                                        onItemTap(item)
+                                    }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func getRankColor(_ rank: String) -> Color {
+        switch rank {
+        case "E": return Color(hex: "#9CA3AF")
+        case "D": return Color(hex: "#3B82F6")
+        case "C": return Color(hex: "#A855F7")
+        case "B": return Color(hex: "#EF4444")
+        case "A": return Color(hex: "#FBBF24")
+        case "S": return Color(hex: "#FFD700")
+        default: return Color(hex: "#9CA3AF")
+        }
     }
 }
 

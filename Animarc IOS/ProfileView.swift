@@ -188,18 +188,21 @@ struct ProfileView: View {
             // Top Navigation Bar
             VStack {
                 HStack {
-                    // Back button
+                    Spacer()
+                    
+                    // Close button
                     Button(action: {
                         dismiss()
                     }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 20, weight: .semibold))
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                            .background(Color(hex: "#374151"))
+                            .clipShape(Circle())
                     }
-                    .padding(.leading, 20)
+                    .padding(.trailing, 20)
                     .padding(.top, 20)
-                    
-                    Spacer()
                 }
                 Spacer()
             }
