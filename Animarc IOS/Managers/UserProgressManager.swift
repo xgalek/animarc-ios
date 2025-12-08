@@ -45,6 +45,15 @@ final class UserProgressManager: ObservableObject {
     /// Error message if something goes wrong
     @Published var errorMessage: String?
     
+    /// Pending level up info to be celebrated on HomeView
+    @Published var pendingLevelUp: (oldLevel: Int, newLevel: Int)?
+    
+    /// Pending rank up info to be celebrated on HomeView
+    @Published var pendingRankUp: (oldRank: RankInfo, newRank: RankInfo)?
+    
+    /// Pending item drop to be celebrated on HomeView
+    @Published var pendingItemDrop: PortalItem?
+    
     // MARK: - Computed Properties
     
     /// Current level (defaults to 1 if not loaded)
@@ -290,6 +299,15 @@ final class UserProgressManager: ObservableObject {
                 }
             }
             
+            // Store pending rewards for celebration on HomeView
+            if didLevelUp {
+                self.pendingLevelUp = (oldLevel: oldLevel, newLevel: newLevel)
+            }
+            
+            if didRankUp, let oldRank = oldRankInfo, let newRank = newRankInfo {
+                self.pendingRankUp = (oldRank: oldRank, newRank: newRank)
+            }
+            
             return SessionReward(
                 xpCalculation: xpCalc,
                 didLevelUp: didLevelUp,
@@ -384,5 +402,13 @@ final class UserProgressManager: ObservableObject {
         streak = nil
         recentSessions = []
         errorMessage = nil
+        clearPendingRewards()
+    }
+    
+    /// Clear pending rewards after they've been shown
+    func clearPendingRewards() {
+        pendingLevelUp = nil
+        pendingRankUp = nil
+        pendingItemDrop = nil
     }
 }
