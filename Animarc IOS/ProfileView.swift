@@ -10,10 +10,12 @@ import SwiftUI
 struct ProfileView: View {
     @Binding var navigationPath: NavigationPath
     @EnvironmentObject var progressManager: UserProgressManager
+    @StateObject private var appBlockingManager = AppBlockingManager.shared
     @Environment(\.dismiss) var dismiss
     @State private var notificationsEnabled = true
     @State private var soundsEnabled = true
     @State private var sessionsToday: [FocusSession] = []
+    @State private var showAppSelection = false
     
     var body: some View {
         ZStack {
@@ -210,6 +212,10 @@ struct ProfileView: View {
         .navigationBarBackButtonHidden(true)
         .task {
             sessionsToday = await progressManager.getSessionsToday()
+            appBlockingManager.refreshAuthorizationStatus()
+        }
+        .sheet(isPresented: $showAppSelection) {
+            AppSelectionView()
         }
     }
 }

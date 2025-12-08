@@ -10,9 +10,11 @@ import SwiftUI
 struct FocusSessionView: View {
     @Binding var navigationPath: NavigationPath
     @EnvironmentObject var progressManager: UserProgressManager
+    @StateObject private var appBlockingManager = AppBlockingManager.shared
     @Environment(\.dismiss) var dismiss
     @State private var elapsedTime: Int = 0
     @State private var timer: Timer?
+    @State private var blockingError: String?
     
     var body: some View {
         ZStack {
@@ -83,9 +85,20 @@ struct FocusSessionView: View {
         .navigationBarBackButtonHidden(true)
         .onAppear {
             startTimer()
+            startAppBlocking()
         }
         .onDisappear {
             stopTimer()
+            stopAppBlocking()
+        }
+        .alert("Blocking Error", isPresented: .constant(blockingError != nil)) {
+            Button("OK") {
+                blockingError = nil
+            }
+        } message: {
+            if let error = blockingError {
+                Text(error)
+            }
         }
     }
     
@@ -106,6 +119,41 @@ struct FocusSessionView: View {
         let minutes = elapsedTime / 60
         let seconds = elapsedTime % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    // MARK: - App Blocking Functions
+    
+    private func startAppBlocking() {
+        // Refresh authorization status
+        appBlockingManager.refreshAuthorizationStatus()
+        
+        // Only start blocking if authorized
+        guard appBlockingManager.isAuthorized else {
+            blockingError = "App blocking permission is required. Please grant permission in Settings."
+            return
+        }
+        
+        // Check if apps have been selected for blocking
+        // If no apps selected yet, warn but don't block session (allow user to proceed)
+        // They can configure blocking in settings for next time
+        if appBlockingManager.blockedApplications.isEmpty {
+            print("FocusSessionView: Warning - No apps selected for blocking. Session will continue without blocking.")
+            // Don't show error - just log it. User can configure in settings.
+            return
+        }
+        
+        do {
+            try appBlockingManager.startBlocking()
+            print("FocusSessionView: App blocking started")
+        } catch {
+            blockingError = error.localizedDescription
+            print("FocusSessionView: Failed to start blocking: \(error)")
+        }
+    }
+    
+    private func stopAppBlocking() {
+        appBlockingManager.stopBlocking()
+        print("FocusSessionView: App blocking stopped")
     }
 }
 

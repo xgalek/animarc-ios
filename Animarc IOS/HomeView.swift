@@ -9,10 +9,14 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject var progressManager: UserProgressManager
+    @StateObject private var appBlockingManager = AppBlockingManager.shared
     @State private var navigationPath = NavigationPath()
     @State private var showProfile = false
     @State private var showLevelUpModal = false
     @State private var showItemDropModal = false
+    @State private var showPermissionModal = false
+    @State private var showPermissionDeniedAlert = false
+    @State private var isRequestingPermission = false
     
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -90,7 +94,7 @@ struct HomeView: View {
                 
                 // Focus Button
                 Button(action: {
-                    navigationPath.append("FocusSession")
+                    handleFocusButtonTap()
                 }) {
                     Text("FOCUS")
                         .font(.headline)
@@ -104,6 +108,7 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 30)
                 .padding(.bottom, 40)
+                .disabled(isRequestingPermission)
                 
                 Spacer()
                 }
@@ -128,6 +133,31 @@ struct HomeView: View {
             .onAppear {
                 // Check for pending rewards when view appears (including when returning from RewardView)
                 checkAndShowPendingRewards()
+                // Refresh authorization status
+                appBlockingManager.refreshAuthorizationStatus()
+            }
+            .sheet(isPresented: $showPermissionModal) {
+                AppBlockingPermissionModal(
+                    isRequestingPermission: $isRequestingPermission,
+                    onPermissionGranted: {
+                        showPermissionModal = false
+                        navigationPath.append("FocusSession")
+                    },
+                    onPermissionDenied: {
+                        showPermissionModal = false
+                        showPermissionDeniedAlert = true
+                    }
+                )
+            }
+            .alert("Permission Required", isPresented: $showPermissionDeniedAlert) {
+                Button("Open Settings") {
+                    if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(settingsUrl)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Focus sessions require app blocking permission. Please grant Screen Time permission in Settings to continue.")
             }
             .sheet(isPresented: $showLevelUpModal) {
                 LevelUpModalView(
@@ -159,6 +189,26 @@ struct HomeView: View {
     }
     
     // MARK: - Helper Methods
+    
+    private func handleFocusButtonTap() {
+        // Check if permission has been requested
+        if !appBlockingManager.hasRequestedPermission {
+            // First time - show permission modal
+            showPermissionModal = true
+            return
+        }
+        
+        // Check current authorization status
+        appBlockingManager.refreshAuthorizationStatus()
+        
+        if appBlockingManager.isAuthorized {
+            // Permission granted - proceed to focus session
+            navigationPath.append("FocusSession")
+        } else {
+            // Permission denied or revoked - show alert
+            showPermissionDeniedAlert = true
+        }
+    }
     
     private func checkAndShowPendingRewards() {
         // First check for level up
@@ -348,12 +398,121 @@ struct ItemDropModalView: View {
                         .shadow(color: Color(hex: "#FFA500").opacity(0.6), radius: 15, x: 0, y: 0)
                 }
                 .padding(.horizontal, 30)
-                .padding(.bottom, 40)
+                .padding(.bottom, 60)
             }
-            .padding(.top, 60)
+            .padding(.top, 90)
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - App Blocking Permission Modal
+
+struct AppBlockingPermissionModal: View {
+    @Binding var isRequestingPermission: Bool
+    let onPermissionGranted: () -> Void
+    let onPermissionDenied: () -> Void
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        ZStack {
+            // Background
+            Color(hex: "#1A2332")
+                .ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                // Icon
+                Image(systemName: "shield.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(Color(hex: "#6B46C1"))
+                    .padding(.top, 40)
+                
+                // Title
+                Text("Enter Focus Mode!")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                
+                // Description
+                VStack(spacing: 12) {
+                    VStack(spacing: 4) {
+                        Text("Block distracting apps automatically")
+                            .font(.body)
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                            .multilineTextAlignment(.center)
+                        
+                        Text("during focus sessions.")
+                            .font(.body)
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                            .multilineTextAlignment(.center)
+                    }
+                    
+                    Text("Maximum focus. No interruptions.")
+                        .font(.body)
+                        .foregroundColor(Color(hex: "#9CA3AF"))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 30)
+                
+                Spacer()
+                
+                // Buttons
+                VStack(spacing: 12) {
+                    Button(action: {
+                        requestPermission()
+                    }) {
+                        Text("Block Apps")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color(hex: "#6B46C1"))
+                            .cornerRadius(25)
+                            .shadow(color: Color(hex: "#6B46C1").opacity(0.6), radius: 15, x: 0, y: 0)
+                    }
+                    .disabled(isRequestingPermission)
+                    
+                    Button(action: {
+                        onPermissionDenied()
+                    }) {
+                        Text("Cancel")
+                            .font(.headline)
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                    }
+                    .disabled(isRequestingPermission)
+                }
+                .padding(.horizontal, 30)
+                .padding(.bottom, 40)
+            }
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+    
+    private func requestPermission() {
+        isRequestingPermission = true
+        
+        Task {
+            do {
+                try await AppBlockingManager.shared.requestAuthorization()
+                await MainActor.run {
+                    isRequestingPermission = false
+                    if AppBlockingManager.shared.isAuthorized {
+                        onPermissionGranted()
+                    } else {
+                        onPermissionDenied()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isRequestingPermission = false
+                    onPermissionDenied()
+                }
+            }
+        }
     }
 }
 

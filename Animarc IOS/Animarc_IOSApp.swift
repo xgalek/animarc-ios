@@ -11,6 +11,7 @@ import SwiftUI
 struct Animarc_IOSApp: App {
     @StateObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var progressManager = UserProgressManager.shared
+    @Environment(\.scenePhase) private var scenePhase
     
     var body: some Scene {
         WindowGroup {
@@ -43,6 +44,9 @@ struct Animarc_IOSApp: App {
             }
             .task {
                 await supabaseManager.checkExistingSession()
+                // Ensure app blocking is in a clean state on launch
+                // Blocks will be applied when user starts a focus session
+                AppBlockingManager.shared.stopBlocking()
             }
             .onChange(of: supabaseManager.isAuthenticated) { _, isAuthenticated in
                 if !isAuthenticated {
@@ -50,6 +54,26 @@ struct Animarc_IOSApp: App {
                     progressManager.clearData()
                 }
             }
+            .onChange(of: scenePhase) { _, newPhase in
+                // Handle app lifecycle changes
+                handleScenePhaseChange(newPhase)
+            }
+        }
+    }
+    
+    private func handleScenePhaseChange(_ phase: ScenePhase) {
+        switch phase {
+        case .background, .inactive:
+            // App going to background - ensure blocks are maintained
+            // ManagedSettingsStore persists across app lifecycle
+            break
+        case .active:
+            // App becoming active - refresh authorization status
+            Task { @MainActor in
+                AppBlockingManager.shared.refreshAuthorizationStatus()
+            }
+        @unknown default:
+            break
         }
     }
 }
