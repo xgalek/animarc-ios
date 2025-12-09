@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FamilyControls
 
 struct ProfileView: View {
     @Binding var navigationPath: NavigationPath
@@ -15,7 +16,8 @@ struct ProfileView: View {
     @State private var notificationsEnabled = true
     @State private var soundsEnabled = true
     @State private var sessionsToday: [FocusSession] = []
-    @State private var showAppSelection = false
+    @State private var selection = FamilyActivitySelection()
+    @State private var showPicker = false
     
     var body: some View {
         ZStack {
@@ -117,6 +119,129 @@ struct ProfileView: View {
                         .cornerRadius(15)
                         .padding(.horizontal, 20)
                         
+                        // App Allowlist Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Allowed Apps")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                            
+                            VStack(spacing: 0) {
+                                // Authorization Status
+                                HStack {
+                                    Image(systemName: "shield.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(appBlockingManager.isAuthorized ? Color(hex: "#22C55E") : Color(hex: "#DC2626"))
+                                        .frame(width: 24)
+                                    
+                                    Text("Screen Time Permission")
+                                        .font(.body)
+                                        .foregroundColor(.white)
+                                    
+                                    Spacer()
+                                    
+                                    Text(appBlockingManager.isAuthorized ? "Authorized" : "Not Authorized")
+                                        .font(.subheadline)
+                                        .foregroundColor(appBlockingManager.isAuthorized ? Color(hex: "#22C55E") : Color(hex: "#DC2626"))
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                                
+                                if !appBlockingManager.isAuthorized {
+                                    Divider()
+                                        .background(Color(hex: "#9CA3AF").opacity(0.3))
+                                        .padding(.leading, 60)
+                                    
+                                    Button(action: {
+                                        if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                                            UIApplication.shared.open(settingsUrl)
+                                        }
+                                    }) {
+                                        HStack {
+                                            Image(systemName: "gear")
+                                                .font(.system(size: 18))
+                                                .foregroundColor(Color(hex: "#6B46C1"))
+                                                .frame(width: 24)
+                                            
+                                            Text("Open Settings")
+                                                .font(.body)
+                                                .foregroundColor(Color(hex: "#6B46C1"))
+                                            
+                                            Spacer()
+                                            
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                        }
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 16)
+                                    }
+                                }
+                                
+                                if appBlockingManager.isAuthorized {
+                                    Divider()
+                                        .background(Color(hex: "#9CA3AF").opacity(0.3))
+                                        .padding(.leading, 60)
+                                    
+                                    Button(action: {
+                                        showPicker = true
+                                    }) {
+                                        HStack {
+                                            Image(systemName: "app.badge")
+                                                .font(.system(size: 18))
+                                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                                .frame(width: 24)
+                                            
+                                            Text("Select Apps to Allow")
+                                                .font(.body)
+                                                .foregroundColor(.white)
+                                            
+                                            Spacer()
+                                            
+                                            if !appBlockingManager.blockedApplications.isEmpty {
+                                                Text("\(appBlockingManager.blockedApplications.count)")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(Color(hex: "#9CA3AF"))
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 4)
+                                                    .background(Color(hex: "#6B46C1"))
+                                                    .cornerRadius(8)
+                                            }
+                                            
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                        }
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 16)
+                                    }
+                                    
+                                    Divider()
+                                        .background(Color(hex: "#9CA3AF").opacity(0.3))
+                                        .padding(.leading, 60)
+                                    
+                                    HStack {
+                                        Image(systemName: "info.circle.fill")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(Color(hex: "#9CA3AF"))
+                                            .frame(width: 24)
+                                        
+                                        Text("Phone, Messages, and up to 2 apps remain accessible")
+                                            .font(.caption)
+                                            .foregroundColor(Color(hex: "#9CA3AF"))
+                                        
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 12)
+                                }
+                            }
+                            .background(Color(hex: "#374151"))
+                            .cornerRadius(15)
+                            .padding(.horizontal, 20)
+                        }
+                        .padding(.top, 8)
+                        
                         // Future buttons placeholder
                         VStack(spacing: 12) {
                             Button(action: {
@@ -214,8 +339,11 @@ struct ProfileView: View {
             sessionsToday = await progressManager.getSessionsToday()
             appBlockingManager.refreshAuthorizationStatus()
         }
-        .sheet(isPresented: $showAppSelection) {
-            AppSelectionView()
+        .familyActivityPicker(isPresented: $showPicker, selection: $selection)
+        .onChange(of: selection) { _, newSelection in
+            // Update selection when user picks apps to allow
+            let applicationTokens = newSelection.applicationTokens
+            appBlockingManager.setBlockedApplications(applicationTokens)
         }
     }
 }
