@@ -40,6 +40,11 @@ extension SupabaseManager {
             let current_rank: String
             let total_focus_minutes: Int
             let total_sessions_completed: Int
+            let available_stat_points: Int
+            let stat_str: Int
+            let stat_agi: Int
+            let stat_int: Int
+            let stat_vit: Int
         }
         
         let newProgress = NewUserProgress(
@@ -49,7 +54,12 @@ extension SupabaseManager {
             total_xp_earned: 0,
             current_rank: "E",
             total_focus_minutes: 0,
-            total_sessions_completed: 0
+            total_sessions_completed: 0,
+            available_stat_points: 5,
+            stat_str: 10,
+            stat_agi: 10,
+            stat_int: 10,
+            stat_vit: 10
         )
         
         let response: [UserProgress] = try await client
@@ -94,6 +104,11 @@ extension SupabaseManager {
         let levelProgress = LevelService.getLevelProgress(totalXP: Int(newTotalXP))
         let newCurrentXP = max(0, levelProgress.xpInCurrentLevel)
         
+        // Calculate stat points to award based on levels gained
+        let levelsGained = newLevel - current.currentLevel
+        let statPointsToAdd = levelsGained * 5
+        let newAvailableStatPoints = current.availableStatPoints + statPointsToAdd
+        
         struct UpdateData: Codable {
             let current_xp: Int
             let total_xp_earned: Int64
@@ -101,6 +116,7 @@ extension SupabaseManager {
             let current_rank: String
             let total_focus_minutes: Int
             let total_sessions_completed: Int
+            let available_stat_points: Int
         }
         
         let updateData = UpdateData(
@@ -109,7 +125,66 @@ extension SupabaseManager {
             current_level: newLevel,
             current_rank: newRank,
             total_focus_minutes: current.totalFocusMinutes + focusMinutesIncrement,
-            total_sessions_completed: current.totalSessionsCompleted + sessionsIncrement
+            total_sessions_completed: current.totalSessionsCompleted + sessionsIncrement,
+            available_stat_points: newAvailableStatPoints
+        )
+        
+        let response: [UserProgress] = try await client
+            .from("user_progress")
+            .update(updateData)
+            .eq("user_id", value: userId.uuidString)
+            .select()
+            .execute()
+            .value
+        
+        guard let updated = response.first else {
+            throw GamificationError.userProgressNotFound
+        }
+        
+        return updated
+    }
+    
+    /// Update stat allocation after user allocates stat points
+    /// - Parameters:
+    ///   - userId: The user's UUID
+    ///   - statSTR: New STR value
+    ///   - statAGI: New AGI value
+    ///   - statINT: New INT value
+    ///   - statVIT: New VIT value
+    ///   - pointsSpent: Number of stat points spent (will be deducted from available)
+    /// - Returns: Updated UserProgress
+    func updateStatAllocation(
+        userId: UUID,
+        statSTR: Int,
+        statAGI: Int,
+        statINT: Int,
+        statVIT: Int,
+        pointsSpent: Int
+    ) async throws -> UserProgress {
+        // Fetch current progress
+        guard let current = try await fetchUserProgress(userId: userId) else {
+            throw GamificationError.userProgressNotFound
+        }
+        
+        // Validate points spent doesn't exceed available
+        guard pointsSpent <= current.availableStatPoints else {
+            throw GamificationError.userProgressNotFound // TODO: Create proper error type
+        }
+        
+        struct StatUpdateData: Codable {
+            let stat_str: Int
+            let stat_agi: Int
+            let stat_int: Int
+            let stat_vit: Int
+            let available_stat_points: Int
+        }
+        
+        let updateData = StatUpdateData(
+            stat_str: statSTR,
+            stat_agi: statAGI,
+            stat_int: statINT,
+            stat_vit: statVIT,
+            available_stat_points: current.availableStatPoints - pointsSpent
         )
         
         let response: [UserProgress] = try await client

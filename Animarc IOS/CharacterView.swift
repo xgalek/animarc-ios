@@ -15,13 +15,12 @@ struct CharacterView: View {
     @State private var showStatAllocation = false
     
     // Stat allocation system
-    @State private var availablePoints: Int = 5
+    @State private var availablePoints: Int = 0
     @State private var tempStats: [String: Int] = [
-        "HP": 150,
-        "STR": 27,
-        "AGI": 31,
-        "INT": 21,
-        "VIT": 19
+        "STR": 10,
+        "AGI": 10,
+        "INT": 10,
+        "VIT": 10
     ]
     @State private var workingStats: [String: Int] = [:]
     @State private var originalStats: [String: Int] = [:]
@@ -35,9 +34,260 @@ struct CharacterView: View {
     // Inventory popup state
     @State private var showInventoryPopup = false
     @State private var selectedRankFilter: String = "ALL"
-    @State private var showUnequipConfirm = false
     @State private var showSlotFullAlert = false
-    @State private var selectedItemForAction: PortalItem?
+    
+    // MARK: - View Components
+    
+    private var profileCardSection: some View {
+        VStack(spacing: 16) {
+            // Top: Character Sprite and Stats (HStack)
+            HStack(alignment: .top, spacing: 16) {
+                // Left Side: Character Avatar
+                Circle()
+                    .fill(progressManager.currentRankInfo.swiftUIColor)
+                    .frame(width: 150, height: 150)
+                    .shadow(color: progressManager.currentRankInfo.swiftUIColor.opacity(0.5), radius: 15, x: 0, y: 0)
+                
+                // Right Side: Stats Display
+                statsDisplayView
+            }
+        }
+        .padding(.vertical, 24)
+        .padding(.horizontal, 20)
+        .background(Color(hex: "#374151"))
+        .cornerRadius(20)
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+    }
+    
+    private var statsDisplayView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Username
+            Text(progressManager.userProgress?.displayName ?? "Hunter")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.white)
+            
+            // Read-only stats - HP calculated dynamically
+            Text("❤️ HP: \(150 + ((tempStats["STR"] ?? 10) * 5))")
+                .font(.subheadline)
+                .foregroundColor(.white)
+            
+            Text("⚔️ STR: \(tempStats["STR"] ?? 10)")
+                .font(.subheadline)
+                .foregroundColor(.white)
+            
+            Text("⚡ AGI: \(tempStats["AGI"] ?? 10)")
+                .font(.subheadline)
+                .foregroundColor(.white)
+            
+            Text("🧠 INT: \(tempStats["INT"] ?? 10)")
+                .font(.subheadline)
+                .foregroundColor(.white)
+            
+            Text("🛡️ VIT: \(tempStats["VIT"] ?? 10)")
+                .font(.subheadline)
+                .foregroundColor(.white)
+            
+            // Points Available and Allocate Button (only if points > 0)
+            if availablePoints > 0 {
+                Text("📊 \(availablePoints) Points Available")
+                    .font(.subheadline)
+                    .foregroundColor(.white)
+                    .padding(.top, 4)
+                
+                Button(action: {
+                    originalStats = tempStats
+                    workingStats = tempStats
+                    showStatAllocation = true
+                }) {
+                    Text("ALLOCATE POINTS")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .background(Color(hex: "#6B46C1"))
+                        .cornerRadius(8)
+                }
+                .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    
+    private var levelRankStreakSection: some View {
+        HStack(spacing: 12) {
+            Text("Level \(progressManager.currentLevel)")
+                .font(.headline)
+                .foregroundColor(Color(hex: "#A770FF"))
+            
+            Text("|")
+                .font(.headline)
+                .foregroundColor(Color(hex: "#9CA3AF"))
+            
+            Text("\(progressManager.currentRank)-Rank")
+                .font(.headline)
+                .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
+            
+            Text("|")
+                .font(.headline)
+                .foregroundColor(Color(hex: "#9CA3AF"))
+            
+            HStack(spacing: 4) {
+                Text("🔥")
+                    .font(.system(size: 16))
+                Text("\(progressManager.currentStreak) streak")
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+        }
+    }
+    
+    private var rankTitleSection: some View {
+        Text(progressManager.currentRankInfo.title)
+            .font(.subheadline)
+            .foregroundColor(Color(hex: "#9CA3AF"))
+    }
+    
+    private var xpProgressBarSection: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text(progressManager.levelProgress.progressText)
+                    .font(.subheadline)
+                    .foregroundColor(Color(hex: "#9CA3AF"))
+                Spacer()
+                Text("\(Int(progressManager.levelProgress.progressPercent))%")
+                    .font(.subheadline)
+                    .foregroundColor(Color(hex: "#9CA3AF"))
+            }
+            
+            GeometryReader { geometry in
+                xpProgressBarContent(geometry: geometry)
+            }
+            .frame(height: 12)
+        }
+        .padding(.horizontal, 20)
+    }
+    
+    private func xpProgressBarContent(geometry: GeometryProxy) -> some View {
+        let progressPercent = progressManager.levelProgress.progressPercent
+        let progressWidth = geometry.size.width * (progressPercent / 100.0)
+        
+        return ZStack(alignment: .leading) {
+            // Background
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(hex: "#9CA3AF").opacity(0.3))
+                .frame(height: 12)
+            
+            // Progress fill
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(hex: "#22C55E"))
+                .frame(width: progressWidth, height: 12)
+        }
+    }
+    
+    private var equippedItemsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("EQUIPPED ITEMS")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+            
+            if isLoadingInventory {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .tint(.white)
+                    Spacer()
+                }
+                .padding(.vertical, 40)
+            } else if let error = inventoryError {
+                inventoryErrorView(error)
+            } else {
+                equippedItemsGrid
+            }
+        }
+    }
+    
+    private func inventoryErrorView(_ error: String) -> some View {
+        VStack(spacing: 12) {
+            Text("Failed to load inventory")
+                .font(.subheadline)
+                .foregroundColor(.red)
+            Text(error)
+                .font(.caption)
+                .foregroundColor(Color(hex: "#9CA3AF"))
+            Button("Retry") {
+                Task {
+                    await loadInventory()
+                }
+            }
+            .font(.subheadline)
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(hex: "#6B46C1"))
+            .cornerRadius(8)
+        }
+        .padding(.vertical, 40)
+    }
+    
+    private var equippedItemsGrid: some View {
+        let equippedItems = (inventory?.items ?? []).filter { $0.equipped }
+        let emptySlots = max(0, 8 - equippedItems.count)
+        
+        return LazyVGrid(columns: [
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8)
+        ], spacing: 8) {
+            // Show equipped items
+            ForEach(equippedItems) { item in
+                EquippedSlot(item: item)
+            }
+            
+            // Show empty slots
+            ForEach(0..<emptySlots, id: \.self) { _ in
+                EmptySlot {
+                    showInventoryPopup = true
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+    
+    private var manageInventoryButton: some View {
+        Button(action: {
+            showInventoryPopup = true
+        }) {
+            Text("MANAGE INVENTORY")
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Color(hex: "#F59E0B"))
+                .cornerRadius(12)
+        }
+        .padding(.horizontal, 20)
+    }
+    
+    private var challengeButton: some View {
+        Button(action: {
+            showChallengeAlert = true
+        }) {
+            Text("⚔️ CHALLENGE HUNTERS")
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Color(hex: "#6B46C1"))
+                .cornerRadius(25)
+                .shadow(color: Color(hex: "#6B46C1").opacity(0.6), radius: 15, x: 0, y: 0)
+                .shadow(color: Color(hex: "#4A90E2").opacity(0.4), radius: 25, x: 0, y: 0)
+        }
+        .padding(.horizontal, 30)
+        .padding(.bottom, 40)
+    }
     
     var body: some View {
         NavigationStack {
@@ -48,230 +298,13 @@ struct CharacterView: View {
                 
                 ScrollView {
                     VStack(spacing: 24) {
-                        // Profile Card Section - Character & Stats
-                        VStack(spacing: 16) {
-                            // Top: Character Sprite and Stats (HStack)
-                            HStack(alignment: .top, spacing: 16) {
-                                // Left Side: Character Avatar
-                                Circle()
-                                    .fill(progressManager.currentRankInfo.swiftUIColor)
-                                    .frame(width: 150, height: 150)
-                                    .shadow(color: progressManager.currentRankInfo.swiftUIColor.opacity(0.5), radius: 15, x: 0, y: 0)
-                                
-                                // Right Side: Stats Display
-                                VStack(alignment: .leading, spacing: 6) {
-                                    // Username
-                                    Text(progressManager.userProgress?.displayName ?? "Hunter")
-                                        .font(.system(size: 20, weight: .bold))
-                                        .foregroundColor(.white)
-                                    
-                                    // Read-only stats
-                                    Text("❤️ HP: \(tempStats["HP"] ?? 150)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white)
-                                    
-                                    Text("⚔️ STR: \(tempStats["STR"] ?? 27)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white)
-                                    
-                                    Text("⚡ AGI: \(tempStats["AGI"] ?? 31)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white)
-                                    
-                                    Text("🧠 INT: \(tempStats["INT"] ?? 21)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white)
-                                    
-                                    Text("🛡️ VIT: \(tempStats["VIT"] ?? 19)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white)
-                                    
-                                    // Points Available and Allocate Button (only if points > 0)
-                                    if availablePoints > 0 {
-                                        Text("📊 \(availablePoints) Points Available")
-                                            .font(.subheadline)
-                                            .foregroundColor(.white)
-                                            .padding(.top, 4)
-                                        
-                                        Button(action: {
-                                            originalStats = tempStats
-                                            workingStats = tempStats
-                                            showStatAllocation = true
-                                        }) {
-                                            Text("ALLOCATE POINTS")
-                                                .font(.system(size: 14, weight: .semibold))
-                                                .foregroundColor(.white)
-                                                .padding(.vertical, 8)
-                                                .padding(.horizontal, 16)
-                                                .background(Color(hex: "#6B46C1"))
-                                                .cornerRadius(8)
-                                        }
-                                        .padding(.top, 4)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                        .padding(.vertical, 24)
-                        .padding(.horizontal, 20)
-                        .background(Color(hex: "#374151"))
-                        .cornerRadius(20)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
-                        
-                        // Below Card: Level, Rank, Streak (Horizontal)
-                        HStack(spacing: 12) {
-                            Text("Level \(progressManager.currentLevel)")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "#A770FF"))
-                            
-                            Text("|")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "#9CA3AF"))
-                            
-                            Text("\(progressManager.currentRank)-Rank")
-                                .font(.headline)
-                                .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
-                            
-                            Text("|")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "#9CA3AF"))
-                            
-                            HStack(spacing: 4) {
-                                Text("🔥")
-                                    .font(.system(size: 16))
-                                Text("\(progressManager.currentStreak) streak")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        
-                        // Rank Title
-                        Text(progressManager.currentRankInfo.title)
-                            .font(.subheadline)
-                            .foregroundColor(Color(hex: "#9CA3AF"))
-                        
-                        // XP Progress Bar
-                        VStack(spacing: 8) {
-                            HStack {
-                                Text(progressManager.levelProgress.progressText)
-                                    .font(.subheadline)
-                                    .foregroundColor(Color(hex: "#9CA3AF"))
-                                Spacer()
-                                Text("\(Int(progressManager.levelProgress.progressPercent))%")
-                                    .font(.subheadline)
-                                    .foregroundColor(Color(hex: "#9CA3AF"))
-                            }
-                            
-                            GeometryReader { geometry in
-                                ZStack(alignment: .leading) {
-                                    // Background
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(hex: "#9CA3AF").opacity(0.3))
-                                        .frame(height: 12)
-                                    
-                                    // Progress fill
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(hex: "#22C55E"))
-                                        .frame(width: geometry.size.width * (progressManager.levelProgress.progressPercent / 100.0), height: 12)
-                                }
-                            }
-                            .frame(height: 12)
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        // Equipped Items Section
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("EQUIPPED ITEMS")
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 20)
-                            
-                            if isLoadingInventory {
-                                HStack {
-                                    Spacer()
-                                    ProgressView()
-                                        .tint(.white)
-                                    Spacer()
-                                }
-                                .padding(.vertical, 40)
-                            } else if let error = inventoryError {
-                                VStack(spacing: 12) {
-                                    Text("Failed to load inventory")
-                                        .font(.subheadline)
-                                        .foregroundColor(.red)
-                                    Text(error)
-                                        .font(.caption)
-                                        .foregroundColor(Color(hex: "#9CA3AF"))
-                                    Button("Retry") {
-                                        Task {
-                                            await loadInventory()
-                                        }
-                                    }
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color(hex: "#6B46C1"))
-                                    .cornerRadius(8)
-                                }
-                                .padding(.vertical, 40)
-                            } else {
-                                let equippedItems = (inventory?.items ?? []).filter { $0.equipped }
-                                let emptySlots = max(0, 8 - equippedItems.count)
-                                
-                                LazyVGrid(columns: [
-                                    GridItem(.flexible(), spacing: 8),
-                                    GridItem(.flexible(), spacing: 8),
-                                    GridItem(.flexible(), spacing: 8),
-                                    GridItem(.flexible(), spacing: 8)
-                                ], spacing: 8) {
-                                    // Show equipped items
-                                    ForEach(equippedItems) { item in
-                                        EquippedSlot(item: item)
-                                    }
-                                    
-                                    // Show empty slots
-                                    ForEach(0..<emptySlots, id: \.self) { _ in
-                                        EmptySlot {
-                                            showInventoryPopup = true
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal, 20)
-                            }
-                        }
-                        
-                        // Manage Inventory Button
-                        Button(action: {
-                            showInventoryPopup = true
-                        }) {
-                            Text("MANAGE INVENTORY")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(Color(hex: "#F59E0B"))
-                                .cornerRadius(12)
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        // Challenge Button
-                        Button(action: {
-                            showChallengeAlert = true
-                        }) {
-                            Text("⚔️ CHALLENGE HUNTERS")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(Color(hex: "#6B46C1"))
-                                .cornerRadius(25)
-                                .shadow(color: Color(hex: "#6B46C1").opacity(0.6), radius: 15, x: 0, y: 0)
-                                .shadow(color: Color(hex: "#4A90E2").opacity(0.4), radius: 25, x: 0, y: 0)
-                        }
-                        .padding(.horizontal, 30)
-                        .padding(.bottom, 40)
+                        profileCardSection
+                        levelRankStreakSection
+                        rankTitleSection
+                        xpProgressBarSection
+                        equippedItemsSection
+                        manageInventoryButton
+                        challengeButton
                     }
                 }
             }
@@ -289,19 +322,6 @@ struct CharacterView: View {
             .alert("Coming Soon!", isPresented: $showChallengeAlert) {
                 Button("OK", role: .cancel) { }
             }
-            .alert("Unequip Item?", isPresented: $showUnequipConfirm) {
-                Button("Cancel", role: .cancel) {
-                    selectedItemForAction = nil
-                }
-                Button("Unequip", role: .destructive) {
-                    if let item = selectedItemForAction {
-                        Task {
-                            await unequipItem(item)
-                        }
-                    }
-                    selectedItemForAction = nil
-                }
-            }
             .alert("Inventory Full", isPresented: $showSlotFullAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -309,6 +329,12 @@ struct CharacterView: View {
             }
             .task {
                 await loadInventory()
+                await loadStats()
+            }
+            .onChange(of: progressManager.userProgress) { _ in
+                Task {
+                    await loadStats()
+                }
             }
             .sheet(isPresented: $showStatAllocation) {
                 StatAllocationSheet(
@@ -317,7 +343,9 @@ struct CharacterView: View {
                     originalStats: originalStats,
                     isPresented: $showStatAllocation,
                     onSave: { savedStats in
-                        tempStats = savedStats
+                        Task {
+                            await saveStats(savedStats)
+                        }
                     }
                 )
                 .presentationDetents([.medium])
@@ -327,8 +355,11 @@ struct CharacterView: View {
                 InventoryPopupView(
                     inventory: $inventory,
                     selectedRankFilter: $selectedRankFilter,
-                    onItemTap: { item in
-                        handleInventoryItemTap(item)
+                    onEquip: { item in
+                        await equipItem(item)
+                    },
+                    onUnequip: { item in
+                        await unequipItem(item)
                     },
                     onDismiss: {
                         showInventoryPopup = false
@@ -373,20 +404,6 @@ struct CharacterView: View {
         } catch {
             print("CharacterView: Failed to get user ID: \(error)")
             return nil
-        }
-    }
-    
-    /// Handle tap on inventory item in popup
-    private func handleInventoryItemTap(_ item: PortalItem) {
-        if item.equipped {
-            // Show unequip confirmation
-            selectedItemForAction = item
-            showUnequipConfirm = true
-        } else {
-            // Try to equip
-            Task {
-                await equipItem(item)
-            }
         }
     }
     
@@ -435,6 +452,75 @@ struct CharacterView: View {
             inventory = updatedInventory
         } catch {
             print("CharacterView: Failed to unequip item: \(error)")
+        }
+    }
+    
+    // MARK: - Stats Loading and Saving
+    
+    /// Load stats from user progress
+    private func loadStats() async {
+        guard let progress = progressManager.userProgress else {
+            // Use defaults if no progress loaded
+            tempStats = [
+                "STR": 10,
+                "AGI": 10,
+                "INT": 10,
+                "VIT": 10
+            ]
+            availablePoints = 0
+            return
+        }
+        
+        tempStats = [
+            "STR": progress.statSTR,
+            "AGI": progress.statAGI,
+            "INT": progress.statINT,
+            "VIT": progress.statVIT
+        ]
+        availablePoints = progress.availableStatPoints
+    }
+    
+    /// Save stat allocation to database
+    private func saveStats(_ savedStats: [String: Int]) async {
+        guard let userId = await getCurrentUserId() else {
+            print("CharacterView: No authenticated user")
+            return
+        }
+        
+        guard let originalSTR = originalStats["STR"],
+              let originalAGI = originalStats["AGI"],
+              let originalINT = originalStats["INT"],
+              let originalVIT = originalStats["VIT"] else {
+            print("CharacterView: Missing original stats")
+            return
+        }
+        
+        let newSTR = savedStats["STR"] ?? originalSTR
+        let newAGI = savedStats["AGI"] ?? originalAGI
+        let newINT = savedStats["INT"] ?? originalINT
+        let newVIT = savedStats["VIT"] ?? originalVIT
+        
+        // Calculate points spent
+        let pointsSpent = (newSTR - originalSTR) + (newAGI - originalAGI) + (newINT - originalINT) + (newVIT - originalVIT)
+        
+        do {
+            let updatedProgress = try await SupabaseManager.shared.updateStatAllocation(
+                userId: userId,
+                statSTR: newSTR,
+                statAGI: newAGI,
+                statINT: newINT,
+                statVIT: newVIT,
+                pointsSpent: pointsSpent
+            )
+            
+            // Update local state
+            tempStats = savedStats
+            availablePoints = updatedProgress.availableStatPoints
+            
+            // Refresh progress manager
+            progressManager.userProgress = updatedProgress
+        } catch {
+            print("CharacterView: Failed to save stats: \(error)")
         }
     }
 }
@@ -486,16 +572,31 @@ struct StatAllocationSheet: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 20)
                 
-                // Stats with controls
+                // HP Display (read-only, calculated from STR)
+                VStack(spacing: 4) {
+                    Text("❤️ HP: \(150 + ((workingStats["STR"] ?? (originalStats["STR"] ?? 10)) * 5))")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("HP = 150 + (STR × 5)")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hex: "#9CA3AF"))
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                
+                Divider()
+                    .background(Color(hex: "#9CA3AF").opacity(0.3))
+                
+                // Stats with controls (STR, AGI, INT, VIT only - HP is derived)
                 VStack(spacing: 16) {
                     StatRowWithControls(
                         icon: "⚔️",
                         label: "STR",
                         value: Binding(
-                            get: { workingStats["STR"] ?? 27 },
+                            get: { workingStats["STR"] ?? (originalStats["STR"] ?? 10) },
                             set: { workingStats["STR"] = $0 }
                         ),
-                        originalValue: originalStats["STR"] ?? 27,
+                        originalValue: originalStats["STR"] ?? 10,
                         availablePoints: $tempAvailablePoints
                     )
                     
@@ -503,10 +604,10 @@ struct StatAllocationSheet: View {
                         icon: "⚡",
                         label: "AGI",
                         value: Binding(
-                            get: { workingStats["AGI"] ?? 31 },
+                            get: { workingStats["AGI"] ?? (originalStats["AGI"] ?? 10) },
                             set: { workingStats["AGI"] = $0 }
                         ),
-                        originalValue: originalStats["AGI"] ?? 31,
+                        originalValue: originalStats["AGI"] ?? 10,
                         availablePoints: $tempAvailablePoints
                     )
                     
@@ -514,10 +615,10 @@ struct StatAllocationSheet: View {
                         icon: "🧠",
                         label: "INT",
                         value: Binding(
-                            get: { workingStats["INT"] ?? 21 },
+                            get: { workingStats["INT"] ?? (originalStats["INT"] ?? 10) },
                             set: { workingStats["INT"] = $0 }
                         ),
-                        originalValue: originalStats["INT"] ?? 21,
+                        originalValue: originalStats["INT"] ?? 10,
                         availablePoints: $tempAvailablePoints
                     )
                     
@@ -525,10 +626,10 @@ struct StatAllocationSheet: View {
                         icon: "🛡️",
                         label: "VIT",
                         value: Binding(
-                            get: { workingStats["VIT"] ?? 19 },
+                            get: { workingStats["VIT"] ?? (originalStats["VIT"] ?? 10) },
                             set: { workingStats["VIT"] = $0 }
                         ),
-                        originalValue: originalStats["VIT"] ?? 19,
+                        originalValue: originalStats["VIT"] ?? 10,
                         availablePoints: $tempAvailablePoints
                     )
                 }
@@ -632,61 +733,37 @@ struct InventorySlot: View {
     let item: PortalItem
     
     var body: some View {
-        VStack(spacing: 8) {
-            // Item icon with rank badge
-            ZStack(alignment: .topTrailing) {
-                AsyncImage(url: URL(string: item.iconUrl)) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .tint(.white)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 50, height: 50)
-                    case .failure:
-                        Image(systemName: "questionmark.circle")
-                            .font(.system(size: 40))
-                            .foregroundColor(Color(hex: "#9CA3AF"))
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
-                
-                // Rank badge
-                Text(item.rolledRank)
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(item.rankColor)
-                    .cornerRadius(4)
-                    .offset(x: 5, y: -5)
-                
-                // Equipped checkmark overlay
-                if item.equipped {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(Color(hex: "#22C55E"))
-                        .background(Color.white)
-                        .clipShape(Circle())
-                        .offset(x: -5, y: -5)
+        ZStack(alignment: .topTrailing) {
+            // Item icon - larger and centered
+            AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                switch phase {
+                case .empty:
+                    ProgressView()
+                        .tint(.white)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 80, height: 80)
+                case .failure:
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 60))
+                        .foregroundColor(Color(hex: "#9CA3AF"))
+                @unknown default:
+                    EmptyView()
                 }
             }
             
-            // Item name
-            Text(item.name)
-                .font(.caption)
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-            
-            // Show rank + stat value
-            Text("\(item.rolledRank) | +\(item.statValue) \(item.statType)")
+            // Rank badge
+            Text(item.rolledRank)
                 .font(.caption2)
-                .foregroundColor(item.rankColor)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(item.rankColor)
+                .cornerRadius(4)
+                .offset(x: 5, y: -5)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 120)
@@ -793,8 +870,11 @@ struct EmptySlot: View {
 struct InventoryPopupView: View {
     @Binding var inventory: PortalInventory?
     @Binding var selectedRankFilter: String
-    let onItemTap: (PortalItem) -> Void
+    let onEquip: (PortalItem) async -> Void
+    let onUnequip: (PortalItem) async -> Void
     let onDismiss: () -> Void
+    
+    @State private var selectedItem: PortalItem?
     
     private let rankFilters = ["ALL", "E", "D", "C", "B", "A", "S"]
     
@@ -890,13 +970,12 @@ struct InventoryPopupView: View {
                         LazyVGrid(columns: [
                             GridItem(.flexible(), spacing: 8),
                             GridItem(.flexible(), spacing: 8),
-                            GridItem(.flexible(), spacing: 8),
                             GridItem(.flexible(), spacing: 8)
                         ], spacing: 8) {
                             ForEach(items) { item in
                                 InventorySlot(item: item)
                                     .onTapGesture {
-                                        onItemTap(item)
+                                        selectedItem = item
                                     }
                             }
                         }
@@ -905,6 +984,28 @@ struct InventoryPopupView: View {
                     }
                 }
             }
+        }
+        .sheet(item: $selectedItem) { item in
+            ItemDetailsPopup(
+                item: item,
+                onClose: {
+                    selectedItem = nil
+                },
+                onEquip: {
+                    Task {
+                        await onEquip(item)
+                        selectedItem = nil
+                    }
+                },
+                onUnequip: {
+                    Task {
+                        await onUnequip(item)
+                        selectedItem = nil
+                    }
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
     }
     
@@ -917,6 +1018,114 @@ struct InventoryPopupView: View {
         case "A": return Color(hex: "#FBBF24")
         case "S": return Color(hex: "#FFD700")
         default: return Color(hex: "#9CA3AF")
+        }
+    }
+}
+
+struct ItemDetailsPopup: View {
+    let item: PortalItem
+    let onClose: () -> Void
+    let onEquip: () -> Void
+    let onUnequip: () -> Void
+    
+    var body: some View {
+        ZStack {
+            // Background
+            Color(hex: "#1A2332")
+                .ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                // Large item image with rank badge
+                ZStack(alignment: .topTrailing) {
+                    AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .tint(.white)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 150, height: 150)
+                        case .failure:
+                            Image(systemName: "questionmark.circle")
+                                .font(.system(size: 100))
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    
+                    // Rank badge
+                    Text(item.rolledRank)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(item.rankColor)
+                        .cornerRadius(6)
+                        .offset(x: 10, y: -10)
+                }
+                .padding(.top, 50)
+                
+                // Item name
+                Text(item.name)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+                
+                // Rank display
+                Text("\(item.rolledRank)-Rank")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(item.rankColor)
+                
+                // Stats display
+                Text("+\(item.statValue) \(item.statType)")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Color(hex: "#374151"))
+                    .cornerRadius(12)
+                
+                Spacer()
+                
+                // Bottom button row
+                HStack(spacing: 16) {
+                    // Close button (left)
+                    Button(action: {
+                        onClose()
+                    }) {
+                        Text("Close")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color(hex: "#374151"))
+                            .cornerRadius(12)
+                    }
+                    
+                    // Equip/Unequip button (right)
+                    Button(action: {
+                        if item.equipped {
+                            onUnequip()
+                        } else {
+                            onEquip()
+                        }
+                    }) {
+                        Text(item.equipped ? "Unequip" : "Equip")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(item.equipped ? Color(hex: "#EF4444") : Color(hex: "#6B46C1"))
+                            .cornerRadius(12)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 30)
+            }
         }
     }
 }

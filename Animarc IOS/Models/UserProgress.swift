@@ -8,7 +8,7 @@
 import Foundation
 
 /// Maps to Supabase table: user_progress
-struct UserProgress: Codable, Identifiable {
+struct UserProgress: Codable, Identifiable, Equatable {
     let id: UUID
     var userId: UUID?
     var currentLevel: Int
@@ -20,6 +20,13 @@ struct UserProgress: Codable, Identifiable {
     var displayName: String?
     let createdAt: Date
     var updatedAt: Date
+    
+    // Stat system fields
+    var availableStatPoints: Int
+    var statSTR: Int
+    var statAGI: Int
+    var statINT: Int
+    var statVIT: Int
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -33,6 +40,11 @@ struct UserProgress: Codable, Identifiable {
         case displayName = "display_name"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case availableStatPoints = "available_stat_points"
+        case statSTR = "stat_str"
+        case statAGI = "stat_agi"
+        case statINT = "stat_int"
+        case statVIT = "stat_vit"
     }
 }
 
@@ -52,8 +64,18 @@ extension UserProgress {
             totalSessionsCompleted: 0,
             displayName: nil,
             createdAt: Date(),
-            updatedAt: Date()
+            updatedAt: Date(),
+            availableStatPoints: 0,
+            statSTR: 10,
+            statAGI: 10,
+            statINT: 10,
+            statVIT: 10
         )
+    }
+    
+    /// Calculate HP based on STR: HP = 150 + (STR * 5)
+    var calculatedHP: Int {
+        return 150 + (statSTR * 5)
     }
 }
 
