@@ -14,9 +14,12 @@ struct HomeView: View {
     @State private var showProfile = false
     @State private var showLevelUpModal = false
     @State private var showItemDropModal = false
+    @State private var showStreakCelebration = false
     @State private var showPermissionModal = false
     @State private var showPermissionDeniedAlert = false
     @State private var isRequestingPermission = false
+    
+    private let streakCelebrationKey = "lastStreakCelebrationShownDate"
     
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -28,14 +31,19 @@ struct HomeView: View {
                 VStack(spacing: 0) {
                 // Top Status Bar
                 HStack {
-                    // Fire emoji and streak number
-                    HStack(spacing: 4) {
-                        Text("🔥")
-                            .font(.system(size: 20))
-                        Text("\(progressManager.currentStreak)")
-                            .font(.headline)
-                            .foregroundColor(.white)
+                    // Fire emoji and streak number (tappable to show celebration)
+                    Button(action: {
+                        showStreakCelebrationManually()
+                    }) {
+                        HStack(spacing: 4) {
+                            Text("🔥")
+                                .font(.system(size: 20))
+                            Text("\(progressManager.currentStreak)")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                        }
                     }
+                    .buttonStyle(PlainButtonStyle())
                     
                     Spacer()
                     
@@ -133,6 +141,8 @@ struct HomeView: View {
             .onAppear {
                 // Check for pending rewards when view appears (including when returning from RewardView)
                 checkAndShowPendingRewards()
+                // Check for streak celebration (after rewards)
+                checkAndShowStreakCelebration()
                 // Refresh authorization status
                 appBlockingManager.refreshAuthorizationStatus()
             }
@@ -185,6 +195,13 @@ struct HomeView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showStreakCelebration) {
+                StreakCelebrationModalView(
+                    streakCount: progressManager.currentStreak
+                ) {
+                    showStreakCelebration = false
+                }
+            }
         }
     }
     
@@ -221,6 +238,73 @@ struct HomeView: View {
         if progressManager.pendingItemDrop != nil {
             showItemDropModal = true
         }
+    }
+    
+    private func shouldShowStreakCelebration() -> Bool {
+        // Don't show if data is still loading
+        if progressManager.isLoading {
+            return false
+        }
+        
+        // Don't show if streak is 0
+        if progressManager.currentStreak <= 0 {
+            return false
+        }
+        
+        // Check if already shown today
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        // Use date formatter for day-level comparison
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone.current
+        
+        let todayString = dateFormatter.string(from: today)
+        
+        if let lastShownDateString = UserDefaults.standard.string(forKey: streakCelebrationKey),
+           lastShownDateString == todayString {
+            return false // Already shown today
+        }
+        
+        return true
+    }
+    
+    private func checkAndShowStreakCelebration() {
+        // Only show if no other modals are showing and conditions are met
+        guard !showLevelUpModal, !showItemDropModal else {
+            return // Wait for other modals to finish
+        }
+        
+        guard shouldShowStreakCelebration() else {
+            return
+        }
+        
+        // Mark as shown today
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone.current
+        let todayString = dateFormatter.string(from: Date())
+        UserDefaults.standard.set(todayString, forKey: streakCelebrationKey)
+        
+        // Show the modal
+        showStreakCelebration = true
+    }
+    
+    private func showStreakCelebrationManually() {
+        // Manual trigger - bypass once-per-day check
+        // Only check if data is loaded and streak > 0
+        guard !progressManager.isLoading, progressManager.currentStreak > 0 else {
+            return
+        }
+        
+        // Only show if no other modals are showing
+        guard !showLevelUpModal, !showItemDropModal else {
+            return
+        }
+        
+        // Show the modal (don't update UserDefaults for manual triggers)
+        showStreakCelebration = true
     }
 }
 
@@ -403,6 +487,179 @@ struct ItemDropModalView: View {
             .padding(.top, 90)
         }
         .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - Streak Celebration Modal
+
+struct StreakCelebrationModalView: View {
+    let streakCount: Int
+    let onDismiss: () -> Void
+    
+    @State private var flameScale: CGFloat = 1.0
+    @State private var flameGlow: CGFloat = 0.5
+    @State private var selectedMessage: String = ""
+    
+    private let motivationalMessages = [
+        "Way to show up! Keep the habit strong",
+        "One step closer. Every day counts.",
+        "You got this! Maintain that perfect record.",
+        "Future You is proud! Keep reaching for your goal.",
+        "Streak secured! The momentum is yours.",
+        "You're on fire! Don't let the flame die out."
+    ]
+    
+    private var calendarDays: [(date: Date, dayAbbrev: String, isCompleted: Bool, isToday: Bool, isFuture: Bool)] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        // Find Monday of current week
+        let weekday = calendar.component(.weekday, from: today)
+        // Convert: Sunday=1, Monday=2, ..., Saturday=7
+        // We want Monday=0, so: (weekday + 5) % 7
+        let daysFromMonday = (weekday + 5) % 7
+        guard let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: today) else {
+            return []
+        }
+        
+        var days: [(date: Date, dayAbbrev: String, isCompleted: Bool, isToday: Bool, isFuture: Bool)] = []
+        
+        // Day abbreviations for Mon-Sun
+        let dayAbbrevs = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+        
+        // Generate 7 days starting from Monday
+        for i in 0..<7 {
+            if let date = calendar.date(byAdding: .day, value: i, to: monday) {
+                let dateStart = calendar.startOfDay(for: date)
+                let isToday = calendar.isDateInToday(date)
+                let isFuture = dateStart > today
+                
+                // Calculate if this day is within the streak
+                // Streak includes today and the previous (streakCount - 1) days
+                // daysAgo: positive = days in the past, 0 = today, negative = future
+                let daysAgo = calendar.dateComponents([.day], from: dateStart, to: today).day ?? 0
+                // Completed if: not future AND within streak range (0 to streakCount-1)
+                let isCompleted = daysAgo >= 0 && daysAgo < streakCount
+                
+                days.append((
+                    date: date,
+                    dayAbbrev: dayAbbrevs[i],
+                    isCompleted: isCompleted,
+                    isToday: isToday,
+                    isFuture: isFuture
+                ))
+            }
+        }
+        
+        return days
+    }
+    
+    var body: some View {
+        ZStack {
+            // Background - dark theme
+            Color(hex: "#1A2332")
+                .ignoresSafeArea()
+            
+            VStack(spacing: 32) {
+                Spacer()
+                    .frame(height: 40)
+                
+                // Large animated flame icon with streak number
+                VStack(spacing: 16) {
+                    Text("🔥")
+                        .font(.system(size: 80))
+                        .scaleEffect(flameScale)
+                        .shadow(color: Color(hex: "#FF6B35").opacity(flameGlow), radius: 20, x: 0, y: 0)
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                                flameScale = 1.15
+                            }
+                            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                                flameGlow = 1.0
+                            }
+                        }
+                    
+                    // Streak number
+                    Text("\(streakCount)")
+                        .font(.system(size: 64, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    // "days streak!" text
+                    Text("days streak!")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(Color(hex: "#FF6B35"))
+                }
+                
+                // 7-day calendar
+                VStack(spacing: 12) {
+                    Text("Last 7 Days")
+                        .font(.headline)
+                        .foregroundColor(Color(hex: "#9CA3AF"))
+                    
+                    HStack(spacing: 10) {
+                        ForEach(Array(calendarDays.enumerated()), id: \.offset) { index, day in
+                            VStack(spacing: 6) {
+                                // Day circle
+                                ZStack {
+                                    Circle()
+                                        .fill(day.isCompleted || day.isToday ? Color(hex: "#FF6B35") : Color(hex: "#374151"))
+                                        .frame(width: 40, height: 40)
+                                    
+                                    if day.isToday {
+                                        Text("🔥")
+                                            .font(.system(size: 18))
+                                    } else if day.isCompleted {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                
+                                // Day label
+                                Text(day.dayAbbrev)
+                                    .font(.caption)
+                                    .foregroundColor(day.isCompleted || day.isToday ? Color(hex: "#FF6B35") : Color(hex: "#9CA3AF"))
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                
+                // Motivational text
+                Text(selectedMessage)
+                    .font(.title3)
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 8)
+                    .onAppear {
+                        // Set message once when modal appears
+                        if selectedMessage.isEmpty {
+                            selectedMessage = motivationalMessages.randomElement() ?? motivationalMessages[0]
+                        }
+                    }
+                
+                Spacer()
+                
+                // Continue button
+                Button(action: onDismiss) {
+                    Text("Continue")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color(hex: "#FF6B35"))
+                        .cornerRadius(25)
+                        .shadow(color: Color(hex: "#FF6B35").opacity(0.6), radius: 15, x: 0, y: 0)
+                }
+                .padding(.horizontal, 30)
+                .padding(.bottom, 60)
+            }
+        }
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
 }
