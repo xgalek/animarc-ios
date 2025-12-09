@@ -216,6 +216,32 @@ struct ProfileView: View {
                                         .padding(.vertical, 16)
                                     }
                                     
+                                    // Display selected apps with icons
+                                    if !appBlockingManager.selectedActivity.applicationTokens.isEmpty {
+                                        Divider()
+                                            .background(Color(hex: "#9CA3AF").opacity(0.3))
+                                            .padding(.leading, 60)
+                                        
+                                        HStack {
+                                            Text("Allowed during focus:")
+                                                .font(.caption)
+                                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                            
+                                            Spacer()
+                                            
+                                            // Display app icons horizontally
+                                            HStack(spacing: 8) {
+                                                ForEach(Array(appBlockingManager.selectedActivity.applicationTokens), id: \.self) { token in
+                                                    Label(token)
+                                                        .labelStyle(.iconOnly)
+                                                        .frame(width: 32, height: 32)
+                                                }
+                                            }
+                                        }
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 12)
+                                    }
+                                    
                                     Divider()
                                         .background(Color(hex: "#9CA3AF").opacity(0.3))
                                         .padding(.leading, 60)
@@ -343,7 +369,13 @@ struct ProfileView: View {
         .onChange(of: selection) { _, newSelection in
             // Update selection when user picks apps to allow
             let applicationTokens = newSelection.applicationTokens
-            appBlockingManager.setBlockedApplications(applicationTokens)
+            appBlockingManager.setBlockedApplications(applicationTokens, selection: newSelection)
+            // Also update local selection for immediate display
+            selection = newSelection
+        }
+        .onAppear {
+            // Restore selection from manager when view appears
+            selection = appBlockingManager.selectedActivity
         }
     }
 }

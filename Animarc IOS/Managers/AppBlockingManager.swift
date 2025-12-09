@@ -29,6 +29,9 @@ final class AppBlockingManager: ObservableObject {
     /// Current settings
     @Published var settings: AppBlockingSettings
     
+    /// Selected activity for displaying app icons
+    @Published var selectedActivity: FamilyActivitySelection = FamilyActivitySelection()
+    
     // MARK: - Private Properties
     
     private let authorizationCenter = AuthorizationCenter.shared
@@ -113,6 +116,16 @@ final class AppBlockingManager: ObservableObject {
     /// Set applications to block (called from FamilyActivityPicker selection)
     func setBlockedApplications(_ applications: Set<ApplicationToken>) {
         selectedApplications = applications
+        // If blocking is active, update immediately
+        if isBlockingActive {
+            managedSettingsStore.shield.applications = selectedApplications
+        }
+    }
+    
+    /// Set applications to block with full selection (for icon display)
+    func setBlockedApplications(_ applications: Set<ApplicationToken>, selection: FamilyActivitySelection) {
+        selectedApplications = applications
+        selectedActivity = selection
         // If blocking is active, update immediately
         if isBlockingActive {
             managedSettingsStore.shield.applications = selectedApplications
