@@ -16,16 +16,18 @@ extension SupabaseManager {
     /// - Parameter userId: The user's UUID
     /// - Returns: UserProgress if found, nil otherwise
     func fetchUserProgress(userId: UUID) async throws -> UserProgress? {
-        // Use array query instead of .single() to handle empty results gracefully
-        let response: [UserProgress] = try await client
-            .from("user_progress")
-            .select()
-            .eq("user_id", value: userId.uuidString)
-            .limit(1)
-            .execute()
-            .value
-        
-        return response.first
+        return try await withRetry {
+            // Use array query instead of .single() to handle empty results gracefully
+            let response: [UserProgress] = try await self.client
+                .from("user_progress")
+                .select()
+                .eq("user_id", value: userId.uuidString)
+                .limit(1)
+                .execute()
+                .value
+            
+            return response.first
+        }
     }
     
     /// Create initial user progress record for a new user
@@ -89,59 +91,61 @@ extension SupabaseManager {
         focusMinutesIncrement: Int = 0,
         sessionsIncrement: Int = 0
     ) async throws -> UserProgress {
-        // Fetch current progress
-        guard let current = try await fetchUserProgress(userId: userId) else {
-            throw GamificationError.userProgressNotFound
+        return try await withRetry {
+            // Fetch current progress
+            guard let current = try await self.fetchUserProgress(userId: userId) else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            // Calculate new values
+            let newTotalXP = Int64(current.totalXPEarned) + Int64(xpToAdd)
+            let newLevel = LevelService.getLevelFromXP(Int(newTotalXP))
+            let newRank = RankService.getRankForLevel(newLevel).code
+            
+            // Calculate XP within current level for display
+            // current_xp represents progress toward next level, must be >= 0
+            let levelProgress = LevelService.getLevelProgress(totalXP: Int(newTotalXP))
+            let newCurrentXP = max(0, levelProgress.xpInCurrentLevel)
+            
+            // Calculate stat points to award based on levels gained
+            let levelsGained = newLevel - current.currentLevel
+            let statPointsToAdd = levelsGained * 5
+            let newAvailableStatPoints = current.availableStatPoints + statPointsToAdd
+            
+            struct UpdateData: Codable {
+                let current_xp: Int
+                let total_xp_earned: Int64
+                let current_level: Int
+                let current_rank: String
+                let total_focus_minutes: Int
+                let total_sessions_completed: Int
+                let available_stat_points: Int
+            }
+            
+            let updateData = UpdateData(
+                current_xp: newCurrentXP,
+                total_xp_earned: newTotalXP,
+                current_level: newLevel,
+                current_rank: newRank,
+                total_focus_minutes: current.totalFocusMinutes + focusMinutesIncrement,
+                total_sessions_completed: current.totalSessionsCompleted + sessionsIncrement,
+                available_stat_points: newAvailableStatPoints
+            )
+            
+            let response: [UserProgress] = try await self.client
+                .from("user_progress")
+                .update(updateData)
+                .eq("user_id", value: userId.uuidString)
+                .select()
+                .execute()
+                .value
+            
+            guard let updated = response.first else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            return updated
         }
-        
-        // Calculate new values
-        let newTotalXP = Int64(current.totalXPEarned) + Int64(xpToAdd)
-        let newLevel = LevelService.getLevelFromXP(Int(newTotalXP))
-        let newRank = RankService.getRankForLevel(newLevel).code
-        
-        // Calculate XP within current level for display
-        // current_xp represents progress toward next level, must be >= 0
-        let levelProgress = LevelService.getLevelProgress(totalXP: Int(newTotalXP))
-        let newCurrentXP = max(0, levelProgress.xpInCurrentLevel)
-        
-        // Calculate stat points to award based on levels gained
-        let levelsGained = newLevel - current.currentLevel
-        let statPointsToAdd = levelsGained * 5
-        let newAvailableStatPoints = current.availableStatPoints + statPointsToAdd
-        
-        struct UpdateData: Codable {
-            let current_xp: Int
-            let total_xp_earned: Int64
-            let current_level: Int
-            let current_rank: String
-            let total_focus_minutes: Int
-            let total_sessions_completed: Int
-            let available_stat_points: Int
-        }
-        
-        let updateData = UpdateData(
-            current_xp: newCurrentXP,
-            total_xp_earned: newTotalXP,
-            current_level: newLevel,
-            current_rank: newRank,
-            total_focus_minutes: current.totalFocusMinutes + focusMinutesIncrement,
-            total_sessions_completed: current.totalSessionsCompleted + sessionsIncrement,
-            available_stat_points: newAvailableStatPoints
-        )
-        
-        let response: [UserProgress] = try await client
-            .from("user_progress")
-            .update(updateData)
-            .eq("user_id", value: userId.uuidString)
-            .select()
-            .execute()
-            .value
-        
-        guard let updated = response.first else {
-            throw GamificationError.userProgressNotFound
-        }
-        
-        return updated
     }
     
     /// Update stat allocation after user allocates stat points
@@ -220,26 +224,28 @@ extension SupabaseManager {
         xpEarned: Int,
         bonusXP: Int = 0
     ) async throws -> FocusSession {
-        let newSession = NewFocusSession(
-            userId: userId.uuidString,
-            durationMinutes: durationMinutes,
-            xpEarned: xpEarned,
-            completedAt: Date(),
-            bonusXpEarned: bonusXP
-        )
-        
-        let response: [FocusSession] = try await client
-            .from("focus_sessions")
-            .insert(newSession)
-            .select()
-            .execute()
-            .value
-        
-        guard let saved = response.first else {
-            throw GamificationError.sessionSaveFailed
+        return try await withRetry {
+            let newSession = NewFocusSession(
+                userId: userId.uuidString,
+                durationMinutes: durationMinutes,
+                xpEarned: xpEarned,
+                completedAt: Date(),
+                bonusXpEarned: bonusXP
+            )
+            
+            let response: [FocusSession] = try await self.client
+                .from("focus_sessions")
+                .insert(newSession)
+                .select()
+                .execute()
+                .value
+            
+            guard let saved = response.first else {
+                throw GamificationError.sessionSaveFailed
+            }
+            
+            return saved
         }
-        
-        return saved
     }
     
     /// Fetch user's focus session history
@@ -361,78 +367,80 @@ extension SupabaseManager {
     /// - Parameter userId: The user's UUID
     /// - Returns: Updated FocusStreak with streak status
     func updateStreak(userId: UUID) async throws -> FocusStreak {
-        let streak = try await fetchOrCreateStreak(userId: userId)
-        
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        
-        // If already visited today, no update needed
-        if let lastVisit = streak.lastVisitDate {
-            let lastVisitDay = calendar.startOfDay(for: lastVisit)
-            if lastVisitDay == today {
-                return streak
-            }
+        return try await withRetry {
+            let streak = try await self.fetchOrCreateStreak(userId: userId)
             
-            // Check if yesterday - continue streak
-            let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
-            let isConsecutive = lastVisitDay == yesterday
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
             
-            var newCurrentStreak: Int
-            if isConsecutive {
-                newCurrentStreak = streak.currentStreak + 1
+            // If already visited today, no update needed
+            if let lastVisit = streak.lastVisitDate {
+                let lastVisitDay = calendar.startOfDay(for: lastVisit)
+                if lastVisitDay == today {
+                    return streak
+                }
+                
+                // Check if yesterday - continue streak
+                let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+                let isConsecutive = lastVisitDay == yesterday
+                
+                var newCurrentStreak: Int
+                if isConsecutive {
+                    newCurrentStreak = streak.currentStreak + 1
+                } else {
+                    // Streak broken - reset to 1
+                    newCurrentStreak = 1
+                }
+                
+                let newLongestStreak = max(streak.longestStreak, newCurrentStreak)
+                
+                struct StreakUpdate: Codable {
+                    let current_streak: Int
+                    let longest_streak: Int
+                    let last_visit_date: Date
+                    let total_visits: Int
+                }
+                
+                let update = StreakUpdate(
+                    current_streak: newCurrentStreak,
+                    longest_streak: newLongestStreak,
+                    last_visit_date: today,
+                    total_visits: streak.totalVisits + 1
+                )
+                
+                let response: [FocusStreak] = try await self.client
+                    .from("focus_streaks")
+                    .update(update)
+                    .eq("user_id", value: userId.uuidString)
+                    .select()
+                    .execute()
+                    .value
+                
+                guard let updated = response.first else {
+                    throw GamificationError.streakUpdateFailed
+                }
+                
+                return updated
             } else {
-                // Streak broken - reset to 1
-                newCurrentStreak = 1
+                // First ever visit - just update the date
+                struct FirstVisitUpdate: Codable {
+                    let last_visit_date: Date
+                }
+                
+                let response: [FocusStreak] = try await self.client
+                    .from("focus_streaks")
+                    .update(FirstVisitUpdate(last_visit_date: today))
+                    .eq("user_id", value: userId.uuidString)
+                    .select()
+                    .execute()
+                    .value
+                
+                guard let updated = response.first else {
+                    throw GamificationError.streakUpdateFailed
+                }
+                
+                return updated
             }
-            
-            let newLongestStreak = max(streak.longestStreak, newCurrentStreak)
-            
-            struct StreakUpdate: Codable {
-                let current_streak: Int
-                let longest_streak: Int
-                let last_visit_date: Date
-                let total_visits: Int
-            }
-            
-            let update = StreakUpdate(
-                current_streak: newCurrentStreak,
-                longest_streak: newLongestStreak,
-                last_visit_date: today,
-                total_visits: streak.totalVisits + 1
-            )
-            
-            let response: [FocusStreak] = try await client
-                .from("focus_streaks")
-                .update(update)
-                .eq("user_id", value: userId.uuidString)
-                .select()
-                .execute()
-                .value
-            
-            guard let updated = response.first else {
-                throw GamificationError.streakUpdateFailed
-            }
-            
-            return updated
-        } else {
-            // First ever visit - just update the date
-            struct FirstVisitUpdate: Codable {
-                let last_visit_date: Date
-            }
-            
-            let response: [FocusStreak] = try await client
-                .from("focus_streaks")
-                .update(FirstVisitUpdate(last_visit_date: today))
-                .eq("user_id", value: userId.uuidString)
-                .select()
-                .execute()
-                .value
-            
-            guard let updated = response.first else {
-                throw GamificationError.streakUpdateFailed
-            }
-            
-            return updated
         }
     }
 }

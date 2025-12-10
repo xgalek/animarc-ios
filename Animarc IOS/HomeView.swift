@@ -11,6 +11,7 @@ import FamilyControls
 struct HomeView: View {
     @EnvironmentObject var progressManager: UserProgressManager
     @StateObject private var appBlockingManager = AppBlockingManager.shared
+    @StateObject private var errorManager = ErrorManager.shared
     @State private var navigationPath = NavigationPath()
     @State private var showProfile = false
     @State private var showLevelUpModal = false
@@ -20,6 +21,7 @@ struct HomeView: View {
     @State private var showPermissionDeniedAlert = false
     @State private var isRequestingPermission = false
     @State private var showFocusConfig = false
+    @State private var isRefreshing = false
     
     private let streakCelebrationKey = "lastStreakCelebrationShownDate"
     
@@ -30,9 +32,41 @@ struct HomeView: View {
                 Color(hex: "#1A2332")
                     .ignoresSafeArea()
                 
-                VStack(spacing: 0) {
-                // Top Status Bar
-                HStack {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Persistent error banner if errorMessage is set
+                        if let errorMsg = progressManager.errorMessage {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.white)
+                                Text(errorMsg)
+                                    .font(.subheadline)
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Button(action: {
+                                    Task {
+                                        isRefreshing = true
+                                        await progressManager.loadProgress()
+                                        isRefreshing = false
+                                    }
+                                }) {
+                                    Text("Retry")
+                                        .font(.subheadline)
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.white.opacity(0.2))
+                                        .cornerRadius(8)
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(Color(hex: "#DC2626"))
+                            .padding(.top, 8)
+                        }
+                        
+                        // Top Status Bar
+                        HStack {
                     // Fire emoji and streak number (tappable to show celebration)
                     Button(action: {
                         showStreakCelebrationManually()
@@ -121,8 +155,13 @@ struct HomeView: View {
                 .disabled(isRequestingPermission)
                 
                 Spacer()
+                    }
                 }
             }
+            .refreshable {
+                await refreshData()
+            }
+            .toast(errorManager: errorManager)
             .navigationDestination(for: String.self) { destination in
                 if destination == "FocusSession" {
                     FocusSessionView(navigationPath: $navigationPath)
@@ -312,6 +351,12 @@ struct HomeView: View {
         
         // Show the modal (don't update UserDefaults for manual triggers)
         showStreakCelebration = true
+    }
+    
+    private func refreshData() async {
+        isRefreshing = true
+        await progressManager.loadProgress()
+        isRefreshing = false
     }
 }
 

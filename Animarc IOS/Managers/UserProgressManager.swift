@@ -121,12 +121,16 @@ final class UserProgressManager: ObservableObject {
     func loadProgress() async {
         guard let userId = await getCurrentUserId() else {
             print("UserProgressManager: No authenticated user")
+            errorMessage = "Not authenticated. Please sign in again."
+            ErrorManager.shared.showError("Failed to load progress: Not authenticated")
             return
         }
         
         print("UserProgressManager: Loading progress for user \(userId)")
         isLoading = true
         errorMessage = nil
+        
+        var criticalFailures = 0
         
         // Load user progress
         do {
@@ -139,9 +143,17 @@ final class UserProgressManager: ObservableObject {
                 print("UserProgressManager: Created new progress record")
             }
         } catch {
+            criticalFailures += 1
             print("UserProgressManager: Failed to load/create progress: \(error)")
-            // Don't fail completely - use placeholder
-            self.userProgress = nil
+            logError("loadProgress", error: error, context: ["userId": userId.uuidString])
+            
+            // Check if session expired
+            if SupabaseManager.shared.handleSessionError(error) {
+                errorMessage = "Session expired. Please sign in again."
+                ErrorManager.shared.showError("Your session has expired. Please sign in again.")
+            } else {
+                self.userProgress = nil
+            }
         }
         
         // Load streak (separate try-catch so one failure doesn't block others)
@@ -150,7 +162,9 @@ final class UserProgressManager: ObservableObject {
             print("UserProgressManager: Streak loaded - \(streak?.currentStreak ?? 0) days")
         } catch {
             print("UserProgressManager: Failed to load streak: \(error)")
+            logError("loadStreak", error: error, context: ["userId": userId.uuidString])
             self.streak = nil
+            // Non-critical, don't show error toast
         }
         
         // Load recent sessions (separate try-catch)
@@ -159,7 +173,9 @@ final class UserProgressManager: ObservableObject {
             print("UserProgressManager: Loaded \(recentSessions.count) recent sessions")
         } catch {
             print("UserProgressManager: Failed to load sessions: \(error)")
+            logError("loadSessions", error: error, context: ["userId": userId.uuidString])
             self.recentSessions = []
+            // Non-critical, don't show error toast
         }
         
         // Load and apply gamification settings (non-critical)
@@ -169,6 +185,14 @@ final class UserProgressManager: ObservableObject {
             print("UserProgressManager: Applied gamification settings")
         } catch {
             print("UserProgressManager: Failed to load gamification settings (using defaults): \(error)")
+            logError("loadGamificationSettings", error: error, context: ["userId": userId.uuidString])
+            // Non-critical, using defaults
+        }
+        
+        // Show error if critical operations failed
+        if criticalFailures > 0 && userProgress == nil {
+            errorMessage = "Failed to load your progress. Pull down to retry."
+            ErrorManager.shared.showError("Failed to load progress. Pull down to refresh.")
         }
         
         isLoading = false
@@ -184,12 +208,16 @@ final class UserProgressManager: ObservableObject {
             }
         } catch {
             print("Failed to refresh progress: \(error)")
+            logError("refreshProgress", error: error, context: ["userId": userId.uuidString])
+            ErrorManager.shared.showWarning("Failed to refresh progress. Your data may be out of date.")
         }
         
         do {
             self.streak = try await SupabaseManager.shared.updateStreak(userId: userId)
         } catch {
             print("Failed to refresh streak: \(error)")
+            logError("refreshStreak", error: error, context: ["userId": userId.uuidString])
+            // Non-critical, don't show error
         }
     }
     
@@ -202,6 +230,8 @@ final class UserProgressManager: ObservableObject {
         guard let userId = await getCurrentUserId() else {
             print("awardXP: Not authenticated")
             errorMessage = "Not authenticated"
+            logError("awardXP", error: GamificationError.notAuthenticated, context: ["durationMinutes": durationMinutes])
+            ErrorManager.shared.showError("Failed to award XP: Not authenticated. Please sign in again.")
             return nil
         }
         
@@ -213,6 +243,8 @@ final class UserProgressManager: ObservableObject {
             } catch {
                 print("awardXP: Failed to create user progress: \(error)")
                 errorMessage = "Failed to create user profile"
+                logError("awardXP_createProgress", error: error, context: ["userId": userId.uuidString, "durationMinutes": durationMinutes])
+                ErrorManager.shared.showError("Failed to create user profile. Please try again.")
                 return nil
             }
         }
@@ -220,6 +252,7 @@ final class UserProgressManager: ObservableObject {
         guard let currentProgress = userProgress else {
             print("awardXP: Progress still nil after creation attempt")
             errorMessage = "Progress not loaded"
+            ErrorManager.shared.showError("Progress not loaded. Please restart the app.")
             return nil
         }
         
@@ -230,6 +263,7 @@ final class UserProgressManager: ObservableObject {
                 isFirstSession = try await SupabaseManager.shared.isFirstSessionOfDay(userId: userId)
             } catch {
                 print("awardXP: Failed to check first session, assuming true: \(error)")
+                logError("awardXP_checkFirstSession", error: error, context: ["userId": userId.uuidString])
             }
             
             // Calculate XP
@@ -257,7 +291,13 @@ final class UserProgressManager: ObservableObject {
                 print("awardXP: Session saved to database")
             } catch {
                 print("awardXP: Failed to save session (continuing anyway): \(error)")
+                logError("awardXP_saveSession", error: error, context: [
+                    "userId": userId.uuidString,
+                    "durationMinutes": durationMinutes,
+                    "xpEarned": xpCalc.totalXP
+                ])
                 // Continue anyway - XP update is more important
+                ErrorManager.shared.showWarning("Session saved locally but failed to sync. It will sync when connection is restored.")
             }
             
             // Update user progress with new XP
@@ -278,6 +318,7 @@ final class UserProgressManager: ObservableObject {
                 self.recentSessions = try await SupabaseManager.shared.fetchFocusSessions(userId: userId, limit: 20)
             } catch {
                 print("awardXP: Failed to refresh sessions list: \(error)")
+                logError("awardXP_refreshSessions", error: error, context: ["userId": userId.uuidString])
             }
             
             // Check for level up
@@ -322,6 +363,20 @@ final class UserProgressManager: ObservableObject {
         } catch {
             print("awardXP: Failed to award XP: \(error)")
             errorMessage = error.localizedDescription
+            logError("awardXP", error: error, context: [
+                "userId": userId.uuidString,
+                "durationMinutes": durationMinutes,
+                "currentLevel": currentProgress.currentLevel,
+                "currentXP": currentProgress.totalXPEarned
+            ])
+            
+            // Check if session expired
+            if SupabaseManager.shared.handleSessionError(error) {
+                ErrorManager.shared.showError("Your session expired. Please sign in again to continue.")
+            } else {
+                ErrorManager.shared.showError("Failed to award XP: \(error.localizedDescription). Please try again.")
+            }
+            
             return nil
         }
     }
@@ -410,5 +465,35 @@ final class UserProgressManager: ObservableObject {
         pendingLevelUp = nil
         pendingRankUp = nil
         pendingItemDrop = nil
+    }
+    
+    // MARK: - Error Logging
+    
+    /// Log error with context for debugging and Sentry integration
+    private func logError(_ operation: String, error: Error, context: [String: Any] = [:]) {
+        var logContext: [String: Any] = [
+            "operation": operation,
+            "error": error.localizedDescription,
+            "timestamp": ISO8601DateFormatter().string(from: Date())
+        ]
+        
+        // Add custom context
+        logContext.merge(context) { (_, new) in new }
+        
+        // Add error type info
+        if let gamificationError = error as? GamificationError {
+            logContext["errorType"] = String(describing: gamificationError)
+            logContext["isRetryable"] = gamificationError.isRetryable
+            logContext["isAuthError"] = gamificationError.isAuthError
+        }
+        
+        // Log to console (will be replaced with Sentry in step 2)
+        print("ERROR [\(operation)]: \(error.localizedDescription)")
+        print("Context: \(logContext)")
+        
+        // TODO: Send to Sentry when integrated
+        // SentrySDK.capture(error: error) { scope in
+        //     scope.setContext(value: logContext, key: "operation")
+        // }
     }
 }

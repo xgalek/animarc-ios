@@ -15,6 +15,9 @@ struct RewardView: View {
     
     @State private var sessionReward: SessionReward?
     @State private var isProcessing = true
+    @State private var hasError = false
+    @State private var errorMessage = ""
+    @State private var processingTimeout: Task<Void, Never>?
     
     var body: some View {
         ZStack {
@@ -50,6 +53,50 @@ struct RewardView: View {
                             .foregroundColor(.white)
                     }
                     .padding(.top, 40)
+                } else if hasError {
+                    // Error state
+                    VStack(spacing: 24) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(Color(hex: "#DC2626"))
+                        
+                        Text("Failed to Process Rewards")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Text(errorMessage)
+                            .font(.body)
+                            .foregroundColor(.white.opacity(0.9))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                        
+                        VStack(spacing: 12) {
+                            Button(action: {
+                                Task {
+                                    await retryProcessing()
+                                }
+                            }) {
+                                Text("Retry")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(Color(hex: "#6B46C1"))
+                                    .cornerRadius(25)
+                            }
+                            
+                            Button(action: {
+                                navigationPath = NavigationPath()
+                            }) {
+                                Text("Continue Anyway")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                        }
+                        .padding(.horizontal, 30)
+                        .padding(.top, 20)
+                    }
+                    .padding(.top, 60)
                 } else {
                     // Top Content
                     VStack(spacing: 24) {
@@ -126,13 +173,36 @@ struct RewardView: View {
     // MARK: - Helper Functions
     
     private func processSessionReward() async {
+        // Set timeout (10 seconds)
+        processingTimeout = Task {
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            if !Task.isCancelled && isProcessing {
+                await MainActor.run {
+                    hasError = true
+                    errorMessage = "Processing is taking longer than expected. Please check your connection and try again."
+                    isProcessing = false
+                }
+            }
+        }
+        
         // Convert seconds to minutes (minimum 1 minute for XP)
         let minutes = max(1, sessionDuration / 60)
         
         // Award XP and get result (this will store pending level/rank up in progressManager)
         sessionReward = await progressManager.awardXP(durationMinutes: minutes)
         
-        // Try to drop item (checks eligibility internally)
+        // Check if XP award failed
+        if sessionReward == nil {
+            processingTimeout?.cancel()
+            await MainActor.run {
+                hasError = true
+                errorMessage = progressManager.errorMessage ?? "Failed to award XP. Your session was recorded but rewards couldn't be processed."
+                isProcessing = false
+            }
+            return
+        }
+        
+        // Try to drop item (checks eligibility internally) - non-critical
         if let userId = await getCurrentUserId() {
             do {
                 let droppedItem = try await SupabaseManager.shared.dropRandomItem(
@@ -143,10 +213,19 @@ struct RewardView: View {
                 progressManager.pendingItemDrop = droppedItem
             } catch {
                 print("Failed to drop item: \(error)")
+                // Non-critical error, don't show to user
             }
         }
         
+        processingTimeout?.cancel()
         isProcessing = false
+    }
+    
+    private func retryProcessing() async {
+        hasError = false
+        errorMessage = ""
+        isProcessing = true
+        await processSessionReward()
     }
     
     private func getCurrentUserId() async -> UUID? {

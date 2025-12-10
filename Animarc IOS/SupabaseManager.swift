@@ -64,6 +64,7 @@ final class SupabaseManager: ObservableObject {
         
         do {
             let session = try await client.auth.session
+            
             print("=== Existing Session Found ===")
             print("User ID: \(session.user.id)")
             print("Email: \(session.user.email ?? "N/A")")
@@ -73,20 +74,140 @@ final class SupabaseManager: ObservableObject {
         } catch {
             print("No existing session: \(error.localizedDescription)")
             isAuthenticated = false
+            
+            // Check if this is a session expiration error
+            if handleSessionError(error) {
+                print("Session expired or invalid - user needs to sign in again")
+            }
         }
         
         isLoading = false
     }
     
     /// Signs out the current user and clears the session
-    func signOut() async {
+    func signOut() async throws {
         do {
             try await client.auth.signOut()
             isAuthenticated = false
             print("User signed out successfully")
         } catch {
             print("Sign out error: \(error.localizedDescription)")
+            throw error
         }
+    }
+}
+
+// MARK: - Retry Logic
+
+extension SupabaseManager {
+    
+    /// Execute an async operation with automatic retry on transient failures
+    /// - Parameters:
+    ///   - maxRetries: Maximum number of retry attempts (default: 2)
+    ///   - retryDelay: Delay between retries in seconds (default: 1.5)
+    ///   - operation: The async operation to execute
+    /// - Returns: The result of the operation
+    /// - Throws: The error if all retries fail
+    func withRetry<T>(
+        maxRetries: Int = 2,
+        retryDelay: TimeInterval = 1.5,
+        operation: @escaping () async throws -> T
+    ) async throws -> T {
+        var lastError: Error?
+        
+        for attempt in 0...maxRetries {
+            do {
+                let result = try await operation()
+                
+                // Log retry success if this was a retry
+                if attempt > 0 {
+                    print("SupabaseManager: Operation succeeded after \(attempt) retry(ies)")
+                }
+                
+                return result
+            } catch {
+                lastError = error
+                
+                // Check if error is retryable
+                let isRetryable = isRetryableError(error)
+                
+                // Don't retry on last attempt or if error is not retryable
+                if attempt >= maxRetries || !isRetryable {
+                    if attempt > 0 {
+                        print("SupabaseManager: Operation failed after \(attempt) retry(ies): \(error.localizedDescription)")
+                    }
+                    throw error
+                }
+                
+                // Log retry attempt
+                print("SupabaseManager: Operation failed (attempt \(attempt + 1)/\(maxRetries + 1)), retrying in \(retryDelay)s...")
+                
+                // Wait before retrying
+                try? await Task.sleep(nanoseconds: UInt64(retryDelay * 1_000_000_000))
+            }
+        }
+        
+        // Should never reach here, but just in case
+        throw lastError ?? NSError(domain: "SupabaseManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+    }
+    
+    /// Check if an error is retryable (network/transient errors)
+    private func isRetryableError(_ error: Error) -> Bool {
+        // Check for network-related errors
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .timedOut, .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost:
+                return true
+            case .httpTooManyRedirects, .badServerResponse:
+                return true
+            default:
+                return false
+            }
+        }
+        
+        // Check for Supabase-specific errors
+        if let supabaseError = error as NSError? {
+            // Retry on 5xx server errors
+            if supabaseError.domain.contains("supabase") || supabaseError.domain.contains("postgrest") {
+                if let statusCode = supabaseError.userInfo["statusCode"] as? Int {
+                    return statusCode >= 500 && statusCode < 600
+                }
+                return true // Assume retryable if Supabase error
+            }
+        }
+        
+        // Check for GamificationError
+        if let gamificationError = error as? GamificationError {
+            return gamificationError.isRetryable
+        }
+        
+        return false
+    }
+    
+    /// Handle session expiration and redirect to auth if needed
+    func handleSessionError(_ error: Error) -> Bool {
+        // Check if this is a session/auth error
+        if let gamificationError = error as? GamificationError, gamificationError.isAuthError {
+            Task { @MainActor in
+                isAuthenticated = false
+                print("SupabaseManager: Session expired, redirecting to auth")
+            }
+            return true
+        }
+        
+        // Check for Supabase auth errors
+        if let nsError = error as NSError? {
+            let errorDescription = nsError.localizedDescription.lowercased()
+            if errorDescription.contains("session") || errorDescription.contains("token") || errorDescription.contains("unauthorized") {
+                Task { @MainActor in
+                    isAuthenticated = false
+                    print("SupabaseManager: Auth error detected, redirecting to auth")
+                }
+                return true
+            }
+        }
+        
+        return false
     }
 }
 

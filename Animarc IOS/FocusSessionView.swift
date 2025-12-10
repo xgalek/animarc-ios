@@ -24,6 +24,7 @@ struct FocusSessionView: View {
     @State private var currentPomodoroNumber: Int = 1
     @State private var timer: Timer?
     @State private var blockingError: String?
+    @State private var showBlockingError = false
     
     var body: some View {
         ZStack {
@@ -123,9 +124,17 @@ struct FocusSessionView: View {
             stopTimer()
             stopAppBlocking()
         }
-        .alert("Blocking Error", isPresented: .constant(blockingError != nil)) {
+        .alert("Blocking Error", isPresented: $showBlockingError) {
             Button("OK") {
                 blockingError = nil
+                showBlockingError = false
+            }
+            Button("Open Settings") {
+                if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsUrl)
+                }
+                blockingError = nil
+                showBlockingError = false
             }
         } message: {
             if let error = blockingError {
@@ -230,7 +239,10 @@ struct FocusSessionView: View {
         
         // Only start blocking if authorized
         guard appBlockingManager.isAuthorized else {
-            blockingError = "App blocking permission is required. Please grant permission in Settings."
+            blockingError = "App blocking permission is required. Please grant Screen Time permission in Settings to block distracting apps during focus sessions."
+            showBlockingError = true
+            // Don't block session - allow user to proceed without blocking
+            print("FocusSessionView: App blocking not authorized - session will continue without blocking")
             return
         }
         
@@ -247,7 +259,9 @@ struct FocusSessionView: View {
             try appBlockingManager.startBlocking()
             print("FocusSessionView: App blocking started")
         } catch {
-            blockingError = error.localizedDescription
+            // Graceful degradation - don't block session if blocking fails
+            blockingError = "Failed to start app blocking: \(error.localizedDescription). Your focus session will continue without app blocking."
+            showBlockingError = true
             print("FocusSessionView: Failed to start blocking: \(error)")
         }
     }

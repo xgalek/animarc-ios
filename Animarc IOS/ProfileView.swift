@@ -18,6 +18,9 @@ struct ProfileView: View {
     @State private var sessionsToday: [FocusSession] = []
     @State private var selection = FamilyActivitySelection()
     @State private var showPicker = false
+    @State private var showSignOutError = false
+    @State private var signOutErrorMessage = ""
+    @State private var isSigningOut = false
     
     var body: some View {
         ZStack {
@@ -287,14 +290,20 @@ struct ProfileView: View {
                             
                             Button(action: {
                                 Task {
-                                    await SupabaseManager.shared.signOut()
+                                    await handleSignOut()
                                 }
                             }) {
                                 HStack {
-                                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(.red)
-                                    Text("Sign Out")
+                                    if isSigningOut {
+                                        ProgressView()
+                                            .tint(.red)
+                                            .scaleEffect(0.8)
+                                    } else {
+                                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(.red)
+                                    }
+                                    Text(isSigningOut ? "Signing Out..." : "Sign Out")
                                         .font(.body)
                                         .foregroundColor(.red)
                                     Spacer()
@@ -304,6 +313,7 @@ struct ProfileView: View {
                                 .background(Color(hex: "#374151"))
                                 .cornerRadius(15)
                             }
+                            .disabled(isSigningOut)
                         }
                         .padding(.horizontal, 20)
                     }
@@ -349,6 +359,39 @@ struct ProfileView: View {
         .onAppear {
             // Restore selection from manager when view appears
             selection = appBlockingManager.selectedActivity
+        }
+        .alert("Sign Out Error", isPresented: $showSignOutError) {
+            Button("Retry") {
+                Task {
+                    await handleSignOut()
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                isSigningOut = false
+            }
+        } message: {
+            Text(signOutErrorMessage)
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func handleSignOut() async {
+        isSigningOut = true
+        
+        do {
+            try await SupabaseManager.shared.signOut()
+            // Sign out successful - state will be updated by SupabaseManager
+            await MainActor.run {
+                isSigningOut = false
+            }
+        } catch {
+            await MainActor.run {
+                isSigningOut = false
+                signOutErrorMessage = "Failed to sign out: \(error.localizedDescription). Please try again."
+                showSignOutError = true
+            }
+            print("ProfileView: Sign out error: \(error)")
         }
     }
 }
