@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FamilyControls
 
 struct HomeView: View {
     @EnvironmentObject var progressManager: UserProgressManager
@@ -18,6 +19,7 @@ struct HomeView: View {
     @State private var showPermissionModal = false
     @State private var showPermissionDeniedAlert = false
     @State private var isRequestingPermission = false
+    @State private var showFocusConfig = false
     
     private let streakCelebrationKey = "lastStreakCelebrationShownDate"
     
@@ -151,7 +153,7 @@ struct HomeView: View {
                     isRequestingPermission: $isRequestingPermission,
                     onPermissionGranted: {
                         showPermissionModal = false
-                        navigationPath.append("FocusSession")
+                        showFocusConfig = true
                     },
                     onPermissionDenied: {
                         showPermissionModal = false
@@ -202,6 +204,11 @@ struct HomeView: View {
                     showStreakCelebration = false
                 }
             }
+            .sheet(isPresented: $showFocusConfig) {
+                FocusConfigurationModal(
+                    navigationPath: $navigationPath
+                )
+            }
         }
     }
     
@@ -219,8 +226,8 @@ struct HomeView: View {
         appBlockingManager.refreshAuthorizationStatus()
         
         if appBlockingManager.isAuthorized {
-            // Permission granted - proceed to focus session
-            navigationPath.append("FocusSession")
+            // Permission granted - show configuration modal first
+            showFocusConfig = true
         } else {
             // Permission denied or revoked - show alert
             showPermissionDeniedAlert = true
@@ -661,6 +668,470 @@ struct StreakCelebrationModalView: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - Focus Session Settings Model
+
+enum FocusMode: String, Codable {
+    case stopwatch, timer, pomodoro
+}
+
+struct FocusSessionSettings: Codable {
+    var mode: FocusMode
+    var timerDuration: Int // minutes (10-120)
+    var pomodoroCount: Int // number of pomodoros (1-10)
+    
+    static let userDefaultsKey = "FocusSessionSettings"
+    
+    static func load() -> FocusSessionSettings {
+        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+              let settings = try? JSONDecoder().decode(FocusSessionSettings.self, from: data) else {
+            return FocusSessionSettings(mode: .stopwatch, timerDuration: 25, pomodoroCount: 1)
+        }
+        return settings
+    }
+    
+    func save() {
+        if let data = try? JSONEncoder().encode(self) {
+            UserDefaults.standard.set(data, forKey: Self.userDefaultsKey)
+        }
+    }
+}
+
+// MARK: - Focus Configuration Modal
+
+struct FocusConfigurationModal: View {
+    @Binding var navigationPath: NavigationPath
+    @State private var selectedTag: String? = nil
+    @State private var showFocusSettings = false
+    @State private var focusSettings = FocusSessionSettings.load()
+    @Environment(\.dismiss) var dismiss
+    
+    private let focusTags = ["Deep Work", "Study", "Reading", "Creative Work", "Side Project", "Personal Dev", "Other"]
+    
+    private var modeDisplayName: String {
+        switch focusSettings.mode {
+        case .stopwatch: return "Stopwatch"
+        case .timer: return "Timer"
+        case .pomodoro: return "Pomodoro"
+        }
+    }
+    
+    private var modeIcon: String {
+        switch focusSettings.mode {
+        case .stopwatch: return "stopwatch"
+        case .timer: return "timer"
+        case .pomodoro: return "circle.fill"
+        }
+    }
+    
+    private var durationDisplay: (symbol: String, text: String) {
+        switch focusSettings.mode {
+        case .stopwatch:
+            return ("∞", "Unlimited")
+        case .timer:
+            return ("\(focusSettings.timerDuration)m", "\(focusSettings.timerDuration) min")
+        case .pomodoro:
+            let count = focusSettings.pomodoroCount
+            return ("\(count)", "\(count) Pomodoro\(count > 1 ? "s" : "")")
+        }
+    }
+    
+    var body: some View {
+        ZStack {
+            // Background - dark theme
+            Color(hex: "#1A2332")
+                .ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                // Title
+                Text("What would you like to focus on?")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.top, 80)
+                
+                // Horizontal scrolling pill buttons
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(focusTags, id: \.self) { tag in
+                            Button(action: {
+                                // Haptic feedback
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                impactFeedback.impactOccurred()
+                                
+                                // Toggle selection
+                                if selectedTag == tag {
+                                    selectedTag = nil
+                                } else {
+                                    selectedTag = tag
+                                }
+                            }) {
+                                Text(tag)
+                                    .font(.headline)
+                                    .foregroundColor(selectedTag == tag ? .white : Color(hex: "#9CA3AF"))
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 12)
+                                    .background(selectedTag == tag ? Color(hex: "#FF9500") : Color(hex: "#374151"))
+                                    .cornerRadius(20)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.vertical, 8)
+                
+                // Mode and Duration boxes
+                HStack(spacing: 16) {
+                    // Left box - Mode
+                    Button(action: {
+                        showFocusSettings = true
+                    }) {
+                        VStack(spacing: 8) {
+                            Image(systemName: modeIcon)
+                                .font(.system(size: 24))
+                                .foregroundColor(.white)
+                            Text(modeDisplayName)
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("MODE")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                .textCase(.uppercase)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                        .background(Color(hex: "#374151"))
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    // Right box - Duration
+                    Button(action: {
+                        showFocusSettings = true
+                    }) {
+                        VStack(spacing: 8) {
+                            Text(durationDisplay.symbol)
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(.white)
+                            Text(durationDisplay.text)
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("DURATION")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                .textCase(.uppercase)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                        .background(Color(hex: "#374151"))
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding(.horizontal, 20)
+                
+                Spacer()
+                
+                // Start session button
+                Button(action: {
+                    dismiss()
+                    navigationPath.append("FocusSession")
+                }) {
+                    Text("Start session")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color(hex: "#22C55E"))
+                        .cornerRadius(25)
+                        .shadow(color: Color(hex: "#22C55E").opacity(0.6), radius: 15, x: 0, y: 0)
+                }
+                .padding(.horizontal, 30)
+                
+                // Edit settings text
+                Button(action: {
+                    // Placeholder - does nothing for now
+                }) {
+                    Text("Edit settings")
+                        .font(.headline)
+                        .foregroundColor(Color(hex: "#9CA3AF"))
+                }
+                .padding(.bottom, 40)
+            }
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showFocusSettings) {
+            FocusSettingsModal(settings: $focusSettings)
+        }
+        .onChange(of: showFocusSettings) { _, isShowing in
+            if !isShowing {
+                // Reload settings when modal closes
+                focusSettings = FocusSessionSettings.load()
+            }
+        }
+    }
+}
+
+// MARK: - Focus Settings Modal
+
+struct FocusSettingsModal: View {
+    @Binding var settings: FocusSessionSettings
+    @StateObject private var appBlockingManager = AppBlockingManager.shared
+    @State private var selection = FamilyActivitySelection()
+    @State private var showPicker = false
+    @State private var localSettings: FocusSessionSettings
+    @Environment(\.dismiss) var dismiss
+    
+    init(settings: Binding<FocusSessionSettings>) {
+        self._settings = settings
+        self._localSettings = State(initialValue: settings.wrappedValue)
+    }
+    
+    var body: some View {
+        ZStack {
+            // Background - dark theme
+            Color(hex: "#1A2332")
+                .ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Title
+                    Text("Focus Settings")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.top, 80)
+                    
+                    // Tab selector
+                    HStack(spacing: 0) {
+                        // Stopwatch tab
+                        Button(action: {
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                            localSettings.mode = .stopwatch
+                        }) {
+                            VStack(spacing: 6) {
+                                Image(systemName: "stopwatch")
+                                    .font(.system(size: 18))
+                                Text("Stopwatch")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .foregroundColor(localSettings.mode == .stopwatch ? .white : Color(hex: "#9CA3AF"))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(localSettings.mode == .stopwatch ? Color(hex: "#FF9500") : Color(hex: "#374151"))
+                            .clipShape(
+                                .rect(
+                                    topLeadingRadius: 12,
+                                    bottomLeadingRadius: 12,
+                                    bottomTrailingRadius: 0,
+                                    topTrailingRadius: 0
+                                )
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        // Timer tab
+                        Button(action: {
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                            localSettings.mode = .timer
+                        }) {
+                            VStack(spacing: 6) {
+                                Image(systemName: "timer")
+                                    .font(.system(size: 18))
+                                Text("Timer")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .foregroundColor(localSettings.mode == .timer ? .white : Color(hex: "#9CA3AF"))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(localSettings.mode == .timer ? Color(hex: "#FF9500") : Color(hex: "#374151"))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        // Pomodoro tab
+                        Button(action: {
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                            localSettings.mode = .pomodoro
+                        }) {
+                            VStack(spacing: 6) {
+                                Image(systemName: "circle.fill")
+                                    .font(.system(size: 18))
+                                Text("Pomodoro")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .foregroundColor(localSettings.mode == .pomodoro ? .white : Color(hex: "#9CA3AF"))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(localSettings.mode == .pomodoro ? Color(hex: "#FF9500") : Color(hex: "#374151"))
+                            .clipShape(
+                                .rect(
+                                    topLeadingRadius: 0,
+                                    bottomLeadingRadius: 0,
+                                    bottomTrailingRadius: 12,
+                                    topTrailingRadius: 12
+                                )
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .background(Color(hex: "#374151"))
+                    .cornerRadius(12)
+                    .padding(.horizontal, 20)
+                    
+                    // Tab content
+                    VStack(alignment: .leading, spacing: 16) {
+                        if localSettings.mode == .stopwatch {
+                            Text("Time counts up until you stop.")
+                                .font(.body)
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                .padding(.horizontal, 20)
+                        } else if localSettings.mode == .timer {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("Duration")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    Spacer()
+                                    Text("\(Int(localSettings.timerDuration))m")
+                                        .font(.headline)
+                                        .foregroundColor(Color(hex: "#22C55E"))
+                                }
+                                .padding(.horizontal, 20)
+                                
+                                Slider(value: Binding(
+                                    get: { Double(localSettings.timerDuration) },
+                                    set: { newValue in
+                                        let rounded = Int(newValue)
+                                        if rounded != localSettings.timerDuration {
+                                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                            impactFeedback.impactOccurred()
+                                        }
+                                        localSettings.timerDuration = rounded
+                                    }
+                                ), in: 10...120, step: 1)
+                                .tint(Color(hex: "#FF9500"))
+                                .padding(.horizontal, 20)
+                                
+                                HStack {
+                                    Text("10m")
+                                        .font(.caption)
+                                        .foregroundColor(Color(hex: "#9CA3AF"))
+                                    Spacer()
+                                    Text("120m")
+                                        .font(.caption)
+                                        .foregroundColor(Color(hex: "#9CA3AF"))
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                        } else if localSettings.mode == .pomodoro {
+                            VStack(spacing: 16) {
+                                // Picker for 1-10 pomodoros
+                                Picker("Pomodoros", selection: $localSettings.pomodoroCount) {
+                                    ForEach(1...10, id: \.self) { count in
+                                        Text("\(count) Pomodoro\(count > 1 ? "s" : "")")
+                                            .tag(count)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .frame(height: 150)
+                                
+                                // Explanation
+                                Text("Each Pomodoro = 25min focus + 5min break")
+                                    .font(.caption)
+                                    .foregroundColor(Color(hex: "#9CA3AF"))
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 16)
+                    
+                    // Apps allowed section
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Apps allowed")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                showPicker = true
+                            }) {
+                                Text("Edit")
+                                    .font(.subheadline)
+                                    .foregroundColor(Color(hex: "#9CA3AF"))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color(hex: "#374151"))
+                                    .cornerRadius(8)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        
+                        // Display app icons
+                        if !appBlockingManager.selectedActivity.applicationTokens.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(Array(appBlockingManager.selectedActivity.applicationTokens), id: \.self) { token in
+                                        Label(token)
+                                            .labelStyle(.iconOnly)
+                                            .frame(width: 40, height: 40)
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                            .padding(.bottom, 8)
+                        } else {
+                            Text("No apps selected")
+                                .font(.caption)
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 8)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 16)
+                    
+                    Spacer()
+                        .frame(height: 40)
+                    
+                    // Save button
+                    Button(action: {
+                        settings = localSettings
+                        settings.save()
+                        dismiss()
+                    }) {
+                        Text("Save")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color(hex: "#22C55E"))
+                            .cornerRadius(25)
+                            .shadow(color: Color(hex: "#22C55E").opacity(0.6), radius: 15, x: 0, y: 0)
+                    }
+                    .padding(.horizontal, 30)
+                    .padding(.bottom, 40)
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .familyActivityPicker(isPresented: $showPicker, selection: $selection)
+        .onChange(of: selection) { _, newSelection in
+            let applicationTokens = newSelection.applicationTokens
+            appBlockingManager.setBlockedApplications(applicationTokens, selection: newSelection)
+            selection = newSelection
+        }
+        .onAppear {
+            selection = appBlockingManager.selectedActivity
+        }
     }
 }
 

@@ -7,12 +7,21 @@
 
 import SwiftUI
 
+enum PomodoroPhase {
+    case focus, rest
+}
+
 struct FocusSessionView: View {
     @Binding var navigationPath: NavigationPath
     @EnvironmentObject var progressManager: UserProgressManager
     @StateObject private var appBlockingManager = AppBlockingManager.shared
     @Environment(\.dismiss) var dismiss
-    @State private var elapsedTime: Int = 0
+    @State private var settings: FocusSessionSettings = FocusSessionSettings.load()
+    @State private var elapsedTime: Int = 0 // For stopwatch mode (counts up)
+    @State private var remainingTime: Int = 0 // For timer/pomodoro modes (counts down)
+    @State private var totalElapsedTime: Int = 0 // Total time for XP calculation
+    @State private var currentPhase: PomodoroPhase = .focus
+    @State private var currentPomodoroNumber: Int = 1
     @State private var timer: Timer?
     @State private var blockingError: String?
     
@@ -39,10 +48,29 @@ struct FocusSessionView: View {
                     Spacer()
                     
                     // Timer display
-                    Text(formattedTime)
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(.top, 20)
+                    VStack(spacing: 8) {
+                        Text(formattedTime)
+                            .font(.system(size: 48, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        
+                        // Phase indicator for Pomodoro
+                        if settings.mode == .pomodoro {
+                            HStack(spacing: 8) {
+                                Text(currentPhase == .focus ? "Focus" : "Break")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(currentPhase == .focus ? Color(hex: "#22C55E") : Color(hex: "#6B46C1"))
+                                
+                                Text("-")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(Color(hex: "#9CA3AF"))
+                                
+                                Text("Pomodoro \(currentPomodoroNumber)/\(settings.pomodoroCount)")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                    }
+                    .padding(.top, 20)
                     
                     Spacer()
                     
@@ -67,8 +95,9 @@ struct FocusSessionView: View {
                 // Bottom Section
                 Button(action: {
                     stopTimer()
-                    // Pass elapsed time in seconds to RewardView
-                    navigationPath.append("Reward-\(elapsedTime)")
+                    // Pass total elapsed time in seconds to RewardView
+                    let timeForReward = settings.mode == .stopwatch ? elapsedTime : totalElapsedTime
+                    navigationPath.append("Reward-\(timeForReward)")
                 }) {
                     Text("END SESSION")
                         .font(.headline)
@@ -84,6 +113,9 @@ struct FocusSessionView: View {
         }
         .navigationBarBackButtonHidden(true)
         .onAppear {
+            // Load settings
+            settings = FocusSessionSettings.load()
+            initializeTimer()
             startTimer()
             startAppBlocking()
         }
@@ -104,9 +136,70 @@ struct FocusSessionView: View {
     
     // MARK: - Timer Functions
     
+    private func initializeTimer() {
+        switch settings.mode {
+        case .stopwatch:
+            elapsedTime = 0
+            totalElapsedTime = 0
+        case .timer:
+            remainingTime = settings.timerDuration * 60
+            totalElapsedTime = 0
+        case .pomodoro:
+            remainingTime = 25 * 60 // 25 minutes for first focus phase
+            totalElapsedTime = 0
+            currentPhase = .focus
+            currentPomodoroNumber = 1
+        }
+    }
+    
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            handleTimerTick()
+        }
+    }
+    
+    private func handleTimerTick() {
+        switch settings.mode {
+        case .stopwatch:
             elapsedTime += 1
+            totalElapsedTime = elapsedTime
+        case .timer:
+            if remainingTime > 0 {
+                remainingTime -= 1
+                totalElapsedTime += 1
+            } else {
+                // Timer complete - go to rewards
+                stopTimer()
+                navigationPath.append("Reward-\(totalElapsedTime)")
+            }
+        case .pomodoro:
+            handlePomodoroTimer()
+        }
+    }
+    
+    private func handlePomodoroTimer() {
+        if remainingTime > 0 {
+            remainingTime -= 1
+            totalElapsedTime += 1
+        } else {
+            // Phase complete
+            if currentPhase == .focus {
+                // Check if this was the last pomodoro
+                if currentPomodoroNumber == settings.pomodoroCount {
+                    // End session - go to rewards (skip last break)
+                    stopTimer()
+                    navigationPath.append("Reward-\(totalElapsedTime)")
+                } else {
+                    // Start break phase
+                    currentPhase = .rest
+                    remainingTime = 5 * 60 // 5 minutes
+                }
+            } else {
+                // Break complete, start next focus
+                currentPomodoroNumber += 1
+                currentPhase = .focus
+                remainingTime = 25 * 60 // 25 minutes
+            }
         }
     }
     
@@ -116,8 +209,16 @@ struct FocusSessionView: View {
     }
     
     private var formattedTime: String {
-        let minutes = elapsedTime / 60
-        let seconds = elapsedTime % 60
+        let time: Int
+        switch settings.mode {
+        case .stopwatch:
+            time = elapsedTime
+        case .timer, .pomodoro:
+            time = remainingTime
+        }
+        
+        let minutes = time / 60
+        let seconds = time % 60
         return String(format: "%02d:%02d", minutes, seconds)
     }
     
