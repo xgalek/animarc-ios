@@ -21,6 +21,7 @@ struct ProfileView: View {
     @State private var showSignOutError = false
     @State private var signOutErrorMessage = ""
     @State private var isSigningOut = false
+    @State private var isLoadingStats = false
     
     var body: some View {
         ZStack {
@@ -46,7 +47,7 @@ struct ProfileView: View {
                         StatCard(
                             icon: "flame.fill",
                             label: "Sessions Today",
-                            value: "\(sessionsToday.count)"
+                            value: isLoadingStats ? "..." : "\(sessionsToday.count)"
                         )
                         
                         // Total Sessions
@@ -345,7 +346,9 @@ struct ProfileView: View {
         }
         .navigationBarBackButtonHidden(true)
         .task {
+            isLoadingStats = true
             sessionsToday = await progressManager.getSessionsToday()
+            isLoadingStats = false
             appBlockingManager.refreshAuthorizationStatus()
         }
         .familyActivityPicker(isPresented: $showPicker, selection: $selection)

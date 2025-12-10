@@ -18,6 +18,8 @@ struct AuthView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var isSignUpMode = false
+    @State private var isLoading = false
+    @State private var loadingMessage = ""
     
     var body: some View {
         ZStack {
@@ -92,6 +94,8 @@ struct AuthView: View {
                             .background(Color(hex: "#4ADE80"))
                             .cornerRadius(8)
                     }
+                    .disabled(isLoading)
+                    .opacity(isLoading ? 0.6 : 1.0)
                     
                     // Toggle sign in/sign up mode
                     Button(action: {
@@ -102,6 +106,8 @@ struct AuthView: View {
                             .foregroundColor(Color(hex: "#9CA3AF"))
                     }
                     .padding(.top, 4)
+                    .disabled(isLoading)
+                    .opacity(isLoading ? 0.6 : 1.0)
                     
                     // Divider with "or" text
                     HStack {
@@ -128,6 +134,8 @@ struct AuthView: View {
                     .signInWithAppleButtonStyle(.black)
                     .frame(height: 50)
                     .cornerRadius(8)
+                    .disabled(isLoading)
+                    .opacity(isLoading ? 0.6 : 1.0)
                     
                     // Sign in with Google button
                     Button(action: {
@@ -145,9 +153,32 @@ struct AuthView: View {
                         .background(Color.white)
                         .cornerRadius(8)
                     }
+                    .disabled(isLoading)
+                    .opacity(isLoading ? 0.6 : 1.0)
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 60)
+            }
+            
+            // Loading overlay
+            if isLoading {
+                ZStack {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(1.3)
+                        
+                        Text(loadingMessage)
+                            .foregroundColor(.white)
+                            .font(.subheadline)
+                    }
+                    .padding(32)
+                    .background(Color(hex: "#2A3441"))
+                    .cornerRadius(16)
+                }
             }
         }
         .alert("Sign In Error", isPresented: $showError) {
@@ -190,7 +221,10 @@ struct AuthView: View {
                 }
                 
                 // Sign in with Supabase using Apple identity token
-                Task {
+                Task { @MainActor in
+                    isLoading = true
+                    loadingMessage = "Connecting with Apple..."
+                    
                     do {
                         let session = try await SupabaseManager.shared.client.auth.signInWithIdToken(
                             credentials: .init(provider: .apple, idToken: idTokenString)
@@ -203,21 +237,20 @@ struct AuthView: View {
                         print("=================================")
                         
                         // Set authenticated state
-                        await MainActor.run {
-                            SupabaseManager.shared.isAuthenticated = true
-                        }
+                        isLoading = false
+                        SupabaseManager.shared.isAuthenticated = true
                     } catch {
                         print("Supabase Sign In Error: \(error.localizedDescription)")
-                        await MainActor.run {
-                            errorMessage = error.localizedDescription
-                            showError = true
-                        }
+                        isLoading = false
+                        errorMessage = error.localizedDescription
+                        showError = true
                     }
                 }
             }
             
         case .failure(let error):
             print("Apple Sign In Error: \(error.localizedDescription)")
+            isLoading = false
             errorMessage = error.localizedDescription
             showError = true
         }
@@ -275,6 +308,9 @@ struct AuthView: View {
     }
     
     private func handleGoogleSignIn() {
+        isLoading = true
+        loadingMessage = "Connecting with Google..."
+        
         // Generate a random nonce for security validation
         let rawNonce = randomNonceString()
         let hashedNonce = sha256(rawNonce)
@@ -286,6 +322,7 @@ struct AuthView: View {
         
         // Get root view controller
         guard let rootViewController = getRootViewController() else {
+            isLoading = false
             errorMessage = "Unable to get root view controller"
             showError = true
             return
@@ -295,15 +332,21 @@ struct AuthView: View {
         GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController, hint: nil, additionalScopes: nil, nonce: hashedNonce) { result, error in
             if let error = error {
                 print("Google Sign In Error: \(error.localizedDescription)")
-                errorMessage = error.localizedDescription
-                showError = true
+                Task { @MainActor in
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
                 return
             }
             
             guard let result = result,
                   let idToken = result.user.idToken?.tokenString else {
-                errorMessage = "Failed to get ID token from Google"
-                showError = true
+                Task { @MainActor in
+                    isLoading = false
+                    errorMessage = "Failed to get ID token from Google"
+                    showError = true
+                }
                 return
             }
             
@@ -320,11 +363,13 @@ struct AuthView: View {
                     print("========================================")
                     
                     await MainActor.run {
+                        isLoading = false
                         SupabaseManager.shared.isAuthenticated = true
                     }
                 } catch {
                     print("Supabase Google Sign In Error: \(error.localizedDescription)")
                     await MainActor.run {
+                        isLoading = false
                         errorMessage = error.localizedDescription
                         showError = true
                     }
@@ -334,14 +379,19 @@ struct AuthView: View {
     }
     
     private func handleEmailSignIn() {
+        isLoading = true
+        loadingMessage = "Signing in..."
+        
         Task {
             do {
                 try await SupabaseManager.shared.client.auth.signIn(email: email, password: password)
                 await MainActor.run {
+                    isLoading = false
                     SupabaseManager.shared.isAuthenticated = true
                 }
             } catch {
                 await MainActor.run {
+                    isLoading = false
                     errorMessage = error.localizedDescription
                     showError = true
                 }
@@ -350,14 +400,19 @@ struct AuthView: View {
     }
     
     private func handleEmailSignUp() {
+        isLoading = true
+        loadingMessage = "Creating account..."
+        
         Task {
             do {
                 try await SupabaseManager.shared.client.auth.signUp(email: email, password: password)
                 await MainActor.run {
+                    isLoading = false
                     SupabaseManager.shared.isAuthenticated = true
                 }
             } catch {
                 await MainActor.run {
+                    isLoading = false
                     errorMessage = error.localizedDescription
                     showError = true
                 }

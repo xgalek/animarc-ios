@@ -143,3 +143,4 @@ extension View {
         modifier(ToastModifier(errorManager: errorManager))
     }
 }
+

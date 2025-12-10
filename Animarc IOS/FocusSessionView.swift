@@ -25,11 +25,12 @@ struct FocusSessionView: View {
     @State private var timer: Timer?
     @State private var blockingError: String?
     @State private var showBlockingError = false
+    @State private var showEndConfirmation = false
     
     var body: some View {
         ZStack {
-            // Background
-            Color(hex: "#1A2332")
+            // Parallax Background
+            LottiePlayerView(name: "Parallax castle 1 json", loopMode: .loop)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -45,6 +46,7 @@ struct FocusSessionView: View {
                     }
                     .padding(.leading, 20)
                     .padding(.top, 20)
+                    .allowsHitTesting(true)
                     
                     Spacer()
                     
@@ -92,27 +94,77 @@ struct FocusSessionView: View {
                     .shadow(color: Color(hex: "#7FFF00").opacity(0.5), radius: 15, x: 0, y: 0)
                 
                 Spacer()
-                
-                // Bottom Section
-                Button(action: {
-                    stopTimer()
-                    // Pass total elapsed time in seconds to RewardView
-                    let timeForReward = settings.mode == .stopwatch ? elapsedTime : totalElapsedTime
-                    navigationPath.append("Reward-\(timeForReward)")
-                }) {
-                    Text("END SESSION")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color(hex: "#DC2626"))
-                        .cornerRadius(25)
+            }
+            .allowsHitTesting(true)
+            
+            // Tap area to show confirmation popup
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    showEndConfirmation = true
                 }
-                .padding(.horizontal, 30)
-                .padding(.bottom, 40)
+            
+            // End Session Confirmation Popup
+            if showEndConfirmation {
+                ZStack {
+                    // Semi-transparent background overlay
+                    Color.black.opacity(0.5)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            showEndConfirmation = false
+                        }
+                    
+                    // Confirmation card
+                    VStack(spacing: 24) {
+                        Text("This will end your focus session")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.black)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 24)
+                        
+                        HStack(spacing: 16) {
+                            // Cancel button (left)
+                            Button(action: {
+                                showEndConfirmation = false
+                            }) {
+                                Text("Cancel")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.black)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(Color(hex: "#F3F4F6"))
+                                    .cornerRadius(12)
+                            }
+                            
+                            // End button (right)
+                            Button(action: {
+                                showEndConfirmation = false
+                                stopTimer()
+                                // Pass total elapsed time in seconds to RewardView
+                                let timeForReward = settings.mode == .stopwatch ? elapsedTime : totalElapsedTime
+                                navigationPath.append("Reward-\(timeForReward)")
+                            }) {
+                                Text("End")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(Color(hex: "#DC2626"))
+                                    .cornerRadius(12)
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 24)
+                    }
+                    .frame(width: 280)
+                    .background(Color.white)
+                    .cornerRadius(20)
+                    .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
+                }
             }
         }
         .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .tabBar)
         .onAppear {
             // Load settings
             settings = FocusSessionSettings.load()

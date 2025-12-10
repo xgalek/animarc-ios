@@ -69,38 +69,70 @@ struct HomeView: View {
                         HStack {
                     // Fire emoji and streak number (tappable to show celebration)
                     Button(action: {
-                        showStreakCelebrationManually()
+                        if !progressManager.isLoading {
+                            showStreakCelebrationManually()
+                        }
                     }) {
                         HStack(spacing: 4) {
                             Text("🔥")
                                 .font(.system(size: 20))
-                            Text("\(progressManager.currentStreak)")
-                                .font(.headline)
-                                .foregroundColor(.white)
+                            if progressManager.isLoading {
+                                Text("0")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .pulsing()
+                            } else {
+                                Text("\(progressManager.currentStreak)")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                            }
                         }
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .disabled(progressManager.isLoading)
                     
                     Spacer()
                     
                     // Stats text with different colors
                     HStack(spacing: 4) {
-                        Text("\(progressManager.currentRank)-Rank")
-                            .font(.headline)
-                            .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
+                        if progressManager.isLoading {
+                            Text("E-Rank")
+                                .font(.headline)
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                .pulsing()
+                        } else {
+                            Text("\(progressManager.currentRank)-Rank")
+                                .font(.headline)
+                                .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
+                        }
                         Text("|")
                             .font(.headline)
                             .foregroundColor(Color(hex: "#9CA3AF"))
-                        Text("LVL \(progressManager.currentLevel)")
-                            .font(.headline)
-                            .foregroundColor(Color(hex: "#A770FF"))
+                        if progressManager.isLoading {
+                            Text("LVL 1")
+                                .font(.headline)
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                .pulsing()
+                        } else {
+                            Text("LVL \(progressManager.currentLevel)")
+                                .font(.headline)
+                                .foregroundColor(Color(hex: "#A770FF"))
+                        }
                         Text("|")
                             .font(.headline)
                             .foregroundColor(Color(hex: "#9CA3AF"))
-                        Text("\(progressManager.totalXP) xp")
-                            .font(.headline)
-                            .foregroundColor(Color(hex: "#22C55E"))
+                        if progressManager.isLoading {
+                            Text("0 xp")
+                                .font(.headline)
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                .pulsing()
+                        } else {
+                            Text("\(progressManager.totalXP) xp")
+                                .font(.headline)
+                                .foregroundColor(Color(hex: "#22C55E"))
+                        }
                     }
+                    .animation(.easeInOut(duration: 0.3), value: progressManager.isLoading)
                     
                     Spacer()
                     
@@ -1235,16 +1267,28 @@ struct AppBlockingPermissionModal: View {
                     Button(action: {
                         requestPermission()
                     }) {
-                        Text("Block Apps")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color(hex: "#6B46C1"))
-                            .cornerRadius(25)
-                            .shadow(color: Color(hex: "#6B46C1").opacity(0.6), radius: 15, x: 0, y: 0)
+                        HStack {
+                            if isRequestingPermission {
+                                ProgressView()
+                                    .tint(.white)
+                                    .scaleEffect(0.9)
+                                Text("Requesting...")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                            } else {
+                                Text("Block Apps")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color(hex: "#6B46C1"))
+                        .cornerRadius(25)
+                        .shadow(color: Color(hex: "#6B46C1").opacity(0.6), radius: 15, x: 0, y: 0)
                     }
                     .disabled(isRequestingPermission)
+                    .opacity(isRequestingPermission ? 0.8 : 1.0)
                     
                     Button(action: {
                         onPermissionDenied()

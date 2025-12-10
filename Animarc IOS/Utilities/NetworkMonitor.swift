@@ -53,3 +53,4 @@ final class NetworkMonitor: ObservableObject {
         return isConnected
     }
 }
+
