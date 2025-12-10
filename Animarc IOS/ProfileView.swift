@@ -38,54 +38,27 @@ struct ProfileView: View {
                     .padding(.top, 20)
                     
                     // Middle Section - Quick Stats Grid
-                    VStack(spacing: 16) {
-                        HStack(spacing: 16) {
-                            // Total Focus Time
-                            StatCard(
-                                icon: "clock.fill",
-                                label: "Total Focus Time",
-                                value: progressManager.formattedTotalFocusTime
-                            )
-                            
-                            // Sessions Today
-                            StatCard(
-                                icon: "flame.fill",
-                                label: "Sessions Today",
-                                value: "\(sessionsToday.count)"
-                            )
-                        }
+                    HStack(spacing: 16) {
+                        // Sessions Today
+                        StatCard(
+                            icon: "flame.fill",
+                            label: "Sessions Today",
+                            value: "\(sessionsToday.count)"
+                        )
                         
-                        HStack(spacing: 16) {
-                            // Current Streak
-                            StatCard(
-                                icon: "calendar",
-                                label: "Current Streak",
-                                value: "\(progressManager.currentStreak) days"
-                            )
-                            
-                            // Longest Streak
-                            StatCard(
-                                icon: "trophy.fill",
-                                label: "Longest Streak",
-                                value: "\(progressManager.streak?.longestStreak ?? 0) days"
-                            )
-                        }
+                        // Total Sessions
+                        StatCard(
+                            icon: "checkmark.circle.fill",
+                            label: "Total Sessions",
+                            value: "\(progressManager.totalSessions)"
+                        )
                         
-                        HStack(spacing: 16) {
-                            // Total Sessions
-                            StatCard(
-                                icon: "checkmark.circle.fill",
-                                label: "Total Sessions",
-                                value: "\(progressManager.totalSessions)"
-                            )
-                            
-                            // Total XP
-                            StatCard(
-                                icon: "star.fill",
-                                label: "Total XP",
-                                value: "\(progressManager.totalXP)"
-                            )
-                        }
+                        // Total XP
+                        StatCard(
+                            icon: "star.fill",
+                            label: "Total XP",
+                            value: "\(progressManager.totalXP)"
+                        )
                     }
                     .padding(.horizontal, 20)
                     
