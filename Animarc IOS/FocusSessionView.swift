@@ -30,7 +30,7 @@ struct FocusSessionView: View {
     var body: some View {
         ZStack {
             // Parallax Background
-            LottiePlayerView(name: "Parallax castle 1 json", loopMode: .loop)
+            LottiePlayerView(name: "Parallax castle 1 json", loopMode: .loop, speed: 0.7)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -86,14 +86,11 @@ struct FocusSessionView: View {
                 
                 Spacer()
                 
-                // Center Section - Character placeholder
-                // TODO: Replace with animated walking character sprite
-                Circle()
-                    .fill(Color(hex: "#7FFF00"))
+                // Center Section - Character walking animation
+                GIFImageView(gifName: "Character walking castle")
                     .frame(width: 100, height: 100)
-                    .shadow(color: Color(hex: "#7FFF00").opacity(0.5), radius: 15, x: 0, y: 0)
-                
-                Spacer()
+                    .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 4)
+                    .padding(.bottom, 120)
             }
             .allowsHitTesting(true)
             

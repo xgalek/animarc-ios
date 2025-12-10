@@ -12,6 +12,7 @@ struct HomeView: View {
     @EnvironmentObject var progressManager: UserProgressManager
     @StateObject private var appBlockingManager = AppBlockingManager.shared
     @StateObject private var errorManager = ErrorManager.shared
+    @StateObject private var quoteManager = QuoteManager.shared
     @State private var navigationPath = NavigationPath()
     @State private var showProfile = false
     @State private var showLevelUpModal = false
@@ -22,6 +23,8 @@ struct HomeView: View {
     @State private var isRequestingPermission = false
     @State private var showFocusConfig = false
     @State private var isRefreshing = false
+    @State private var showTypingEffect = false
+    @State private var currentQuote = ""
     
     private let streakCelebrationKey = "lastStreakCelebrationShownDate"
     
@@ -146,18 +149,22 @@ struct HomeView: View {
                 
                 // Center Content
                 VStack(spacing: 16) {
-                    // Motivational quote
-                    Text("Success is nothing more than a few simple disciplines, practiced every day.")
+                    // Motivational quote with typing effect
+                    if showTypingEffect {
+                        TypingTextView(fullText: currentQuote, typingSpeed: 0.04) {
+                            // Animation complete
+                        }
                         .font(.title3)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 30)
-                    
-                    // Attribution
-                    Text("-Jim Rohn")
-                        .font(.subheadline)
-                        .foregroundColor(.white)
-                        .padding(.top, 4)
+                    } else {
+                        Text(currentQuote)
+                            .font(.title3)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 30)
+                    }
                 }
                 .padding(.vertical, 20)
                 
@@ -212,6 +219,17 @@ struct HomeView: View {
                 }
             }
             .onAppear {
+                // Load current quote
+                currentQuote = quoteManager.getCurrentQuote()
+                
+                // Check if typing effect should be shown
+                if quoteManager.shouldShowTypingEffect() {
+                    showTypingEffect = true
+                    quoteManager.markTypingEffectShown()
+                } else {
+                    showTypingEffect = false
+                }
+                
                 // Check for pending rewards when view appears (including when returning from RewardView)
                 checkAndShowPendingRewards()
                 // Check for streak celebration (after rewards)
