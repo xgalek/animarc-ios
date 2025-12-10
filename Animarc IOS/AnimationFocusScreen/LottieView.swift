@@ -22,7 +22,6 @@ struct LottiePlayerView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let containerView = UIView(frame: .zero)
         
-        // Use Lottie's LottieAnimationView
         let animationView = Lottie.LottieAnimationView(name: name)
         animationView.contentMode = .scaleAspectFill
         animationView.loopMode = loopMode
@@ -33,10 +32,10 @@ struct LottiePlayerView: UIViewRepresentable {
         containerView.addSubview(animationView)
         
         NSLayoutConstraint.activate([
-            animationView.heightAnchor.constraint(equalTo: containerView.heightAnchor),
-            animationView.widthAnchor.constraint(equalTo: containerView.widthAnchor),
-            animationView.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
-            animationView.centerYAnchor.constraint(equalTo: containerView.centerYAnchor)
+            animationView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            animationView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            animationView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            animationView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
         ])
         
         return containerView
