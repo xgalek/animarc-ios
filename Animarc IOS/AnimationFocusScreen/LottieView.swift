@@ -45,3 +45,5 @@ struct LottiePlayerView: UIViewRepresentable {
         // Animation is already playing, no updates needed
     }
 }
+
+

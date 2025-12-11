@@ -105,3 +105,5 @@ final class QuoteManager: ObservableObject {
         return dateFormatter.string(from: today)
     }
 }
+
+

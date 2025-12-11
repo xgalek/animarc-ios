@@ -52,3 +52,5 @@ struct TypingTextView: View {
         }
     }
 }
+
+

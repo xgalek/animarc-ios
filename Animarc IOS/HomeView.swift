@@ -147,51 +147,52 @@ struct HomeView: View {
                 
                 Spacer()
                 
-                // Center Content
-                VStack(spacing: 16) {
+                // Center Content - Vertically Centered
+                VStack(spacing: 0) {
                     // Motivational quote with typing effect
-                    if showTypingEffect {
-                        TypingTextView(fullText: currentQuote, typingSpeed: 0.04) {
-                            // Animation complete
-                        }
-                        .font(.title3)
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 30)
-                    } else {
-                        Text(currentQuote)
+                    VStack(spacing: 0) {
+                        if showTypingEffect {
+                            TypingTextView(fullText: currentQuote, typingSpeed: 0.04) {
+                                // Animation complete
+                            }
                             .font(.title3)
                             .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
+                            .multilineTextAlignment(.leading)
                             .padding(.horizontal, 30)
+                        } else {
+                            Text(currentQuote)
+                                .font(.title3)
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.leading)
+                                .padding(.horizontal, 30)
+                        }
                     }
+                    .padding(.bottom, 60)
+                    
+                    // Portal Image
+                    GIFImageView(gifName: "Green portal")
+                        .frame(width: 200, height: 200)
+                        .shadow(color: Color(hex: "#7FFF00").opacity(0.5), radius: 20, x: 0, y: 0)
+                        .padding(.bottom, 70)
+                    
+                    // Focus Button
+                    Button(action: {
+                        handleFocusButtonTap()
+                    }) {
+                        Text("FOCUS")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color(hex: "#6B46C1"))
+                            .cornerRadius(25)
+                            .shadow(color: Color(hex: "#6B46C1").opacity(0.6), radius: 15, x: 0, y: 0)
+                            .shadow(color: Color(hex: "#4A90E2").opacity(0.4), radius: 25, x: 0, y: 0)
+                    }
+                    .padding(.horizontal, 30)
+                    .disabled(isRequestingPermission)
                 }
-                .padding(.vertical, 20)
-                
-                // Portal Image
-                GIFImageView(gifName: "Green portal")
-                    .frame(width: 200, height: 200)
-                    .shadow(color: Color(hex: "#7FFF00").opacity(0.5), radius: 20, x: 0, y: 0)
-                    .padding(.top, 30)
-                    .padding(.bottom, 40)
-                
-                // Focus Button
-                Button(action: {
-                    handleFocusButtonTap()
-                }) {
-                    Text("FOCUS")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color(hex: "#6B46C1"))
-                        .cornerRadius(25)
-                        .shadow(color: Color(hex: "#6B46C1").opacity(0.6), radius: 15, x: 0, y: 0)
-                        .shadow(color: Color(hex: "#4A90E2").opacity(0.4), radius: 25, x: 0, y: 0)
-                }
-                .padding(.horizontal, 30)
-                .padding(.bottom, 40)
-                .disabled(isRequestingPermission)
+                .padding(.top, 60)
                 
                 Spacer()
                     }
@@ -418,82 +419,324 @@ struct LevelUpModalView: View {
     let rankUp: (oldRank: RankInfo, newRank: RankInfo)?
     let onDismiss: () -> Void
     
+    // Animation state variables
+    @State private var backgroundOpacity: Double = 0
+    @State private var cardScale: CGFloat = 0.9
+    @State private var borderOpacity: Double = 0
+    @State private var levelScale: CGFloat = 0.5
+    @State private var levelGlow: CGFloat = 0
+    @State private var contentOpacity: Double = 0
+    @State private var showConfetti: Bool = false
+    @State private var gradientRotation: Double = 0
+    
+    // Gold theme color
+    private let goldColor = Color(hex: "#FFD700")
+    
+    // Gradient colors for border and confetti
+    private let gradientColors = [
+        Color(hex: "#F173FF"),
+        Color(hex: "#6FE4FF"),
+        Color(hex: "#FFE66F"),
+        Color(hex: "#F173FF")
+    ]
+    
     var body: some View {
-        ZStack {
-            // Background gradient
-            LinearGradient(
-                colors: [
-                    Color(hex: "#6B46C1").opacity(0.95),
-                    Color(hex: "#FFD700").opacity(0.85)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                // Title
-                Text("LEVEL UP! 🎉")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.white)
-                    .shadow(color: Color.black.opacity(0.3), radius: 5, x: 0, y: 2)
+        GeometryReader { geometry in
+            ZStack {
+                // Background: Semi-transparent black overlay
+                Color.black.opacity(backgroundOpacity)
+                    .ignoresSafeArea()
                 
-                // Level display
-                VStack(spacing: 8) {
-                    Text("Level \(oldLevel)")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.8))
-                    
-                    Image(systemName: "arrow.down")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white)
-                    
-                    Text("Level \(newLevel)")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(Color(hex: "#FFD700"))
+                // Confetti overlay
+                if showConfetti {
+                    ConfettiView(
+                        colors: [
+                            Color(hex: "#F173FF"),
+                            Color(hex: "#6FE4FF"),
+                            Color(hex: "#FFE66F")
+                        ],
+                        particleCount: 160
+                    )
+                    .allowsHitTesting(false)
                 }
                 
-                // Rank Up indicator (if applicable)
-                if let rankUp = rankUp {
-                    VStack(spacing: 8) {
-                        Text("⭐ RANK UP!")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(rankUp.newRank.swiftUIColor)
-                        
-                        Text("\(rankUp.oldRank.code)-Rank → \(rankUp.newRank.code)-Rank")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                        
-                        Text(rankUp.newRank.title)
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.9))
+                // Glassmorphic card container
+                VStack(spacing: 24) {
+                    // Header
+                    Text("LEVEL UP! ⚡")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(.white)
+                        .shadow(color: Color.black.opacity(0.5), radius: 8, x: 0, y: 2)
+                        .opacity(contentOpacity)
+                    
+                    // Hero Element: NEW level number ONLY
+                    Text("\(newLevel)")
+                        .font(.system(size: 90, weight: .bold))
+                        .foregroundColor(goldColor)
+                        .shadow(color: goldColor.opacity(levelGlow), radius: 30, x: 0, y: 0)
+                        .scaleEffect(levelScale)
+                        .padding(.vertical, 20)
+                    
+                    // Rank Badge (only if rank changed)
+                    if let rankUp = rankUp {
+                        VStack(spacing: 8) {
+                            Text("⭐ RANK UP!")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(rankUp.newRank.swiftUIColor)
+                            
+                            Text("\(rankUp.oldRank.code)-Rank → \(rankUp.newRank.code)-Rank")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            Text(rankUp.newRank.title)
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 20)
+                        .background(rankUp.newRank.swiftUIColor.opacity(0.2))
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(rankUp.newRank.swiftUIColor.opacity(0.5), lineWidth: 1)
+                        )
+                        .opacity(contentOpacity)
                     }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 20)
-                    .background(rankUp.newRank.swiftUIColor.opacity(0.2))
-                    .cornerRadius(12)
+                    
+                    Spacer()
+                    
+                    // Continue button
+                    Button(action: onDismiss) {
+                        Text("Continue")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(goldColor)
+                            .cornerRadius(25)
+                            .shadow(color: goldColor.opacity(0.6), radius: 15, x: 0, y: 5)
+                    }
+                    .opacity(contentOpacity)
                 }
-                
-                Spacer()
-                
-                // Dismiss button
-                Button(action: onDismiss) {
-                    Text("Awesome!")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color(hex: "#6B46C1"))
-                        .cornerRadius(25)
-                        .shadow(color: Color(hex: "#6B46C1").opacity(0.6), radius: 15, x: 0, y: 0)
-                }
+                .padding(.top, 50)
+                .padding(.bottom, 70)
                 .padding(.horizontal, 30)
-                .padding(.bottom, 40)
+                .scaleEffect(cardScale)
+                .background(
+                    // Glassmorphic background
+                    ZStack {
+                        // Dark semi-transparent background
+                        Color(hex: "#14141E")
+                            .opacity(0.85)
+                        
+                        // Frosted glass effect
+                        Color.white.opacity(0.02)
+                    }
+                )
+                .background(.ultraThinMaterial)
+                .cornerRadius(28)
+                .overlay(
+                    // Animated gradient border
+                    RoundedRectangle(cornerRadius: 28)
+                        .stroke(
+                            AngularGradient(
+                                colors: gradientColors,
+                                center: .center,
+                                angle: .degrees(gradientRotation)
+                            ),
+                            lineWidth: 3.5
+                        )
+                        .opacity(borderOpacity)
+                )
+                // Soft outer glow - gradient colors
+                .shadow(color: Color(hex: "#F173FF").opacity(0.25 * borderOpacity), radius: 35, x: 0, y: 0)
+                .shadow(color: Color(hex: "#6FE4FF").opacity(0.25 * borderOpacity), radius: 35, x: 0, y: 0)
+                .shadow(color: Color(hex: "#FFE66F").opacity(0.25 * borderOpacity), radius: 35, x: 0, y: 0)
+                // Existing shadows
+                .shadow(color: goldColor.opacity(0.4 * borderOpacity), radius: 25, x: 0, y: 10)
+                .shadow(color: Color.black.opacity(0.3), radius: 30, x: 0, y: 15)
+                .padding(.horizontal, 20)
             }
-            .padding(.top, 60)
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
+        .presentationBackground(.clear)
+        .onAppear {
+            startAnimationSequence()
+        }
+    }
+    
+    private func startAnimationSequence() {
+        // Start gradient rotation animation (continuous)
+        withAnimation(.linear(duration: 8).repeatForever(autoreverses: false)) {
+            gradientRotation = 360
+        }
+        
+        // Phase 1: Background fade-in (0.2s)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            backgroundOpacity = 0.5
+        }
+        
+        // Phase 2: Card entrance with spring (0.4s, starts at 0.2s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                cardScale = 1.0
+                borderOpacity = 1.0
+            }
+        }
+        
+        // Phase 3: Level number POP (0.6s, starts at 0.4s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            // Scale from 0.5x → 1.2x → 1.0x with glow burst
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                levelScale = 1.2
+                levelGlow = 1.0
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    levelScale = 1.0
+                }
+            }
+            
+            // Start confetti explosion (starts at 0.5s, slightly after pop begins)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                showConfetti = true
+            }
+        }
+        
+        // Phase 4: Content fade-in (0.4s, starts at 0.9s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            withAnimation(.easeIn(duration: 0.4)) {
+                contentOpacity = 1.0
+            }
+        }
+    }
+}
+
+// MARK: - Confetti System
+
+struct ConfettiParticle: Identifiable {
+    let id = UUID()
+    var position: CGPoint
+    var velocity: CGVector
+    var rotation: Double
+    var rotationSpeed: Double
+    var opacity: Double = 1.0
+    var color: Color
+}
+
+struct ConfettiView: View {
+    let colors: [Color]
+    let particleCount: Int
+    @State private var particles: [ConfettiParticle] = []
+    @State private var startTime: Date = Date()
+    @State private var timer: Timer?
+    
+    init(color: Color, particleCount: Int = 35) {
+        // Backward compatibility: single color
+        self.colors = [color]
+        self.particleCount = particleCount
+    }
+    
+    init(colors: [Color], particleCount: Int = 35) {
+        self.colors = colors
+        self.particleCount = particleCount
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                ForEach(particles) { particle in
+                    Circle()
+                        .fill(particle.color)
+                        .frame(width: 6, height: 6)
+                        .position(particle.position)
+                        .opacity(particle.opacity)
+                        .rotationEffect(.degrees(particle.rotation))
+                }
+            }
+            .onAppear {
+                initializeParticles(in: geometry.size)
+                startTimer(in: geometry.size)
+            }
+            .onDisappear {
+                timer?.invalidate()
+            }
+        }
+    }
+    
+    private func initializeParticles(in size: CGSize) {
+        let centerX = size.width / 2
+        let startY = size.height * 0.3 // Start above item icon area
+        
+        particles = (0..<particleCount).map { _ in
+            let angle = Double.random(in: -Double.pi...Double.pi)
+            let speed = Double.random(in: 30...80)
+            let horizontalVariance = Double.random(in: -50...50)
+            
+            // Randomly assign color from colors array
+            let randomColor = colors.randomElement() ?? colors[0]
+            
+            return ConfettiParticle(
+                position: CGPoint(
+                    x: centerX + CGFloat.random(in: -40...40),
+                    y: startY + CGFloat.random(in: -20...20)
+                ),
+                velocity: CGVector(
+                    dx: cos(angle) * speed + horizontalVariance,
+                    dy: sin(angle) * speed + 100 // Downward bias
+                ),
+                rotation: Double.random(in: 0...360),
+                rotationSpeed: Double.random(in: -180...180),
+                color: randomColor
+            )
+        }
+    }
+    
+    private func startTimer(in size: CGSize) {
+        startTime = Date()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { _ in
+            updateParticles(in: size)
+        }
+    }
+    
+    private func updateParticles(in size: CGSize) {
+        let elapsed = Date().timeIntervalSince(startTime)
+        
+        // Stop updating after 0.8s
+        if elapsed > 0.8 {
+            timer?.invalidate()
+            return
+        }
+        
+        // Update each particle
+        for i in particles.indices {
+            // Apply gravity
+            particles[i].velocity.dy += 200 * 0.016 // Gravity effect
+            
+            // Update position
+            particles[i].position.x += particles[i].velocity.dx * 0.016
+            particles[i].position.y += particles[i].velocity.dy * 0.016
+            
+            // Update rotation
+            particles[i].rotation += particles[i].rotationSpeed * 0.016
+            
+            // Fade out after 0.6s
+            if elapsed > 0.6 {
+                let fadeProgress = min((elapsed - 0.6) / 0.2, 1.0)
+                particles[i].opacity = 1.0 - fadeProgress
+            }
+        }
+        
+        // Remove particles that are off-screen or fully faded
+        particles = particles.filter { particle in
+            particle.position.y < size.height + 50 &&
+            particle.position.x > -50 &&
+            particle.position.x < size.width + 50 &&
+            particle.opacity > 0.01
+        }
     }
 }
 
@@ -503,93 +746,182 @@ struct ItemDropModalView: View {
     let item: PortalItem
     let onDismiss: () -> Void
     
+    // Animation state variables
+    @State private var backgroundOpacity: Double = 0
+    @State private var cardScale: CGFloat = 0.9
+    @State private var borderOpacity: Double = 0
+    @State private var itemScale: CGFloat = 0.8
+    @State private var contentOpacity: Double = 0
+    @State private var showConfetti: Bool = false
+    
     var body: some View {
-        ZStack {
-            // Background gradient
-            LinearGradient(
-                colors: [
-                    Color(hex: "#FFD700").opacity(0.95),
-                    Color(hex: "#FFA500").opacity(0.85)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                // Title
-                Text("NEW ITEM! 🎁")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.white)
-                    .shadow(color: Color.black.opacity(0.3), radius: 5, x: 0, y: 2)
+        GeometryReader { geometry in
+            ZStack {
+                // Background: Semi-transparent black overlay
+                Color.black.opacity(backgroundOpacity)
+                    .ignoresSafeArea()
                 
-                // Rank badge
-                Text("\(item.rolledRank)-RANK")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(item.rankColor)
-                    .cornerRadius(10)
-                
-                // Item icon
-                AsyncImage(url: URL(string: item.iconUrl)) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .tint(.white)
-                            .scaleEffect(1.5)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 100, height: 100)
-                            .shadow(color: item.rankColor.opacity(0.5), radius: 15, x: 0, y: 0)
-                    case .failure:
-                        Image(systemName: "gift.fill")
-                            .font(.system(size: 80))
-                            .foregroundColor(.white.opacity(0.8))
-                    @unknown default:
-                        EmptyView()
-                    }
+                // Confetti overlay
+                if showConfetti {
+                    ConfettiView(color: item.rankColor)
+                        .allowsHitTesting(false)
                 }
                 
-                // Item name
-                Text(item.name)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                
-                // Stat bonus
-                Text("+\(item.statValue) \(item.statType)")
-                    .font(.headline)
-                    .foregroundColor(item.rankColor)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.2))
-                    .cornerRadius(10)
-                
-                Spacer()
-                
-                // Dismiss button
-                Button(action: onDismiss) {
-                    Text("Collect")
-                        .font(.headline)
+                // Glassmorphic card container
+                VStack(spacing: 16) {
+                    // Title
+                    Text("NEW ITEM! 🎁")
+                        .font(.system(size: 36, weight: .bold))
                         .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color(hex: "#FFA500"))
-                        .cornerRadius(25)
-                        .shadow(color: Color(hex: "#FFA500").opacity(0.6), radius: 15, x: 0, y: 0)
+                        .shadow(color: Color.black.opacity(0.5), radius: 8, x: 0, y: 2)
+                        .opacity(contentOpacity)
+                    
+                    // Rank badge
+                    Text("\(item.rolledRank)-RANK")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(item.rankColor)
+                        .cornerRadius(10)
+                        .shadow(color: item.rankColor.opacity(0.5), radius: 8, x: 0, y: 0)
+                        .opacity(contentOpacity)
+                    
+                    // Item icon (separate for pop animation)
+                    AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .tint(.white)
+                                .scaleEffect(1.5)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 100, height: 100)
+                                .shadow(color: item.rankColor.opacity(0.6), radius: 20, x: 0, y: 0)
+                        case .failure:
+                            Image(systemName: "gift.fill")
+                                .font(.system(size: 80))
+                                .foregroundColor(.white.opacity(0.8))
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    .scaleEffect(itemScale)
+                    
+                    // Item name
+                    Text(item.name)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+                        .opacity(contentOpacity)
+                    
+                    // Stat bonus
+                    Text("+\(item.statValue) \(item.statType)")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(item.rankColor.opacity(0.3))
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(item.rankColor.opacity(0.5), lineWidth: 1)
+                        )
+                        .opacity(contentOpacity)
+                    
+                    // Collect button
+                    Button(action: onDismiss) {
+                        Text("Collect")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(item.rankColor)
+                            .cornerRadius(25)
+                            .shadow(color: item.rankColor.opacity(0.6), radius: 15, x: 0, y: 5)
+                    }
+                    .opacity(contentOpacity)
                 }
+                .padding(.top, 30)
+                .padding(.bottom, 30)
                 .padding(.horizontal, 30)
-                .padding(.bottom, 60)
+                .scaleEffect(cardScale)
+                .background(
+                    // Glassmorphic background
+                    ZStack {
+                        // Dark semi-transparent background
+                        Color(hex: "#14141E")
+                            .opacity(0.85)
+                        
+                        // Frosted glass effect
+                        Color.white.opacity(0.02)
+                    }
+                )
+                .background(.ultraThinMaterial)
+                .cornerRadius(28)
+                .overlay(
+                    // Rank-colored border
+                    RoundedRectangle(cornerRadius: 28)
+                        .stroke(item.rankColor.opacity(borderOpacity), lineWidth: 2.5)
+                )
+                .shadow(color: item.rankColor.opacity(0.4 * borderOpacity), radius: 25, x: 0, y: 10)
+                .shadow(color: Color.black.opacity(0.3), radius: 30, x: 0, y: 15)
+                .padding(.horizontal, 20)
             }
-            .padding(.top, 90)
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
+        .presentationBackground(.clear)
+        .onAppear {
+            startAnimationSequence()
+        }
+    }
+    
+    private func startAnimationSequence() {
+        // Phase 1: Modal Fade In (0.3s)
+        withAnimation(.easeInOut(duration: 0.3)) {
+            backgroundOpacity = 0.45
+        }
+        
+        // Phase 2: Card Entrance (0.5s, starts at 0.3s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                cardScale = 1.0
+                borderOpacity = 1.0
+            }
+        }
+        
+        // Phase 3: Item Pop (0.4s, starts at 0.5s) + Confetti (starts at 0.6s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Item pop animation with subtle bounce
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                itemScale = 1.1
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    itemScale = 1.0
+                }
+            }
+            
+            // Start confetti slightly after item pop
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                showConfetti = true
+            }
+        }
+        
+        // Phase 5: Content Fade (0.3s, starts at 0.8s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            withAnimation(.easeIn(duration: 0.3)) {
+                contentOpacity = 1.0
+            }
+        }
     }
 }
 
