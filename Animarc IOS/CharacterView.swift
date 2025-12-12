@@ -68,12 +68,18 @@ struct CharacterView: View {
         let leftSlots = Array(slots[0..<4])
         let rightSlots = Array(slots[4..<8])
         
-        return VStack(spacing: 8) {
-            // Top: Level and Rank
-            levelRankSection
+        return ZStack {
+            // GIF background - fills entire card
+            GIFImageView(gifName: "Character page gif small", contentMode: .scaleAspectFill)
+                .clipped()
             
-            // Main layout: Left column + Character + Right column with overlaid button
-            ZStack(alignment: .bottom) {
+            // Content on top
+            VStack(spacing: 8) {
+                // Top: Level and Rank
+                levelRankSection
+                
+                // Main layout: Left column + Right column with overlaid button
+                ZStack(alignment: .bottom) {
                 HStack(alignment: .top, spacing: 12) {
                     // Left: All 4 item slots
                     VStack(spacing: 8) {
@@ -85,40 +91,36 @@ struct CharacterView: View {
                         }
                     }
                     
-                    // Center: Character Avatar
-                    Circle()
-                        .fill(progressManager.currentRankInfo.swiftUIColor)
-                        .frame(width: 130, height: 130)
-                        .shadow(color: progressManager.currentRankInfo.swiftUIColor.opacity(0.5), radius: 12, x: 0, y: 0)
+                    Spacer()
                     
                     // Right: All 4 item slots
                     VStack(spacing: 8) {
-                        ForEach(0..<4, id: \.self) { index in
-                            profileItemSlot(item: rightSlots[index])
-                                .onTapGesture {
-                                    showInventoryPopup = true
-                                }
+                            ForEach(0..<4, id: \.self) { index in
+                                profileItemSlot(item: rightSlots[index])
+                                    .onTapGesture {
+                                        showInventoryPopup = true
+                                    }
+                            }
                         }
                     }
-                }
-                
-                // Inventory button overlaid at bottom center
-                Button(action: {
-                    showInventoryPopup = true
-                }) {
-                    Text("Inventory")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.black)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .background(Color(hex: "#F59E0B"))
-                        .cornerRadius(8)
+                    
+                    // Inventory button overlaid at bottom center
+                    Button(action: {
+                        showInventoryPopup = true
+                    }) {
+                        Text("Inventory")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.black)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .background(Color(hex: "#F59E0B"))
+                            .cornerRadius(8)
+                    }
                 }
             }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 20)
         }
-        .padding(.vertical, 20)
-        .padding(.horizontal, 20)
-        .background(Color(hex: "#374151"))
         .cornerRadius(20)
         .padding(.horizontal, 20)
         .padding(.top, 20)
@@ -159,8 +161,12 @@ struct CharacterView: View {
             } else {
                 // Empty slot
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color(hex: "#9CA3AF").opacity(0.3), lineWidth: 1)
+                    .fill(Color(hex: "#243447"))
                     .frame(width: 70, height: 70)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(hex: "#9CA3AF").opacity(0.3), lineWidth: 1)
+                    )
                     .overlay(
                         Image(systemName: "plus")
                             .font(.system(size: 22))

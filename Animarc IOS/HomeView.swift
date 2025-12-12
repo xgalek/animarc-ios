@@ -152,7 +152,7 @@ struct HomeView: View {
                     // Motivational quote with typing effect
                     VStack(spacing: 0) {
                         if showTypingEffect {
-                            TypingTextView(fullText: currentQuote, typingSpeed: 0.04) {
+                            TypingTextView(fullText: currentQuote, typingSpeed: 0.15) {
                                 // Animation complete
                             }
                             .font(.title3)
