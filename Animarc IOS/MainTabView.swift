@@ -80,7 +80,7 @@ struct MainTabView: View {
             CharacterView()
                 .environmentObject(progressManager)
                 .tabItem {
-                    Label("Character", systemImage: "sparkles")
+                    Label("Character", systemImage: "person.fill")
                 }
         }
         .tint(Color(hex: "#8B5CF6"))

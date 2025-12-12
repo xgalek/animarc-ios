@@ -36,23 +36,87 @@ struct CharacterView: View {
     @State private var selectedRankFilter: String = "ALL"
     @State private var showSlotFullAlert = false
     
+    // MARK: - Computed Properties
+    
+    /// Calculate stat bonuses from equipped items
+    private var itemBonuses: [String: Int] {
+        guard let inventory = inventory else { return [:] }
+        let equippedItems = inventory.items.filter { $0.equipped }
+        
+        var bonuses: [String: Int] = ["STR": 0, "AGI": 0, "INT": 0, "VIT": 0]
+        
+        for item in equippedItems {
+            if let currentBonus = bonuses[item.statType] {
+                bonuses[item.statType] = currentBonus + item.statValue
+            }
+        }
+        
+        return bonuses
+    }
+    
     // MARK: - View Components
     
     private var profileCardSection: some View {
-        VStack(spacing: 16) {
-            // Top: Character Sprite and Stats (HStack)
-            HStack(alignment: .top, spacing: 16) {
-                // Left Side: Character Avatar
-                Circle()
-                    .fill(progressManager.currentRankInfo.swiftUIColor)
-                    .frame(width: 150, height: 150)
-                    .shadow(color: progressManager.currentRankInfo.swiftUIColor.opacity(0.5), radius: 15, x: 0, y: 0)
-                
-                // Right Side: Stats Display
-                statsDisplayView
+        let equippedItems = (inventory?.items ?? []).filter { $0.equipped }
+        // Create array of 8 slots (items or nil for empty)
+        var slots: [PortalItem?] = Array(repeating: nil, count: 8)
+        for (index, item) in equippedItems.enumerated() {
+            if index < 8 {
+                slots[index] = item
             }
         }
-        .padding(.vertical, 24)
+        let leftSlots = Array(slots[0..<4])
+        let rightSlots = Array(slots[4..<8])
+        
+        return VStack(spacing: 8) {
+            // Top: Level and Rank
+            levelRankSection
+            
+            // Main layout: Left column + Character + Right column with overlaid button
+            ZStack(alignment: .bottom) {
+                HStack(alignment: .top, spacing: 12) {
+                    // Left: All 4 item slots
+                    VStack(spacing: 8) {
+                        ForEach(0..<4, id: \.self) { index in
+                            profileItemSlot(item: leftSlots[index])
+                                .onTapGesture {
+                                    showInventoryPopup = true
+                                }
+                        }
+                    }
+                    
+                    // Center: Character Avatar
+                    Circle()
+                        .fill(progressManager.currentRankInfo.swiftUIColor)
+                        .frame(width: 130, height: 130)
+                        .shadow(color: progressManager.currentRankInfo.swiftUIColor.opacity(0.5), radius: 12, x: 0, y: 0)
+                    
+                    // Right: All 4 item slots
+                    VStack(spacing: 8) {
+                        ForEach(0..<4, id: \.self) { index in
+                            profileItemSlot(item: rightSlots[index])
+                                .onTapGesture {
+                                    showInventoryPopup = true
+                                }
+                        }
+                    }
+                }
+                
+                // Inventory button overlaid at bottom center
+                Button(action: {
+                    showInventoryPopup = true
+                }) {
+                    Text("Inventory")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.black)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Color(hex: "#F59E0B"))
+                        .cornerRadius(8)
+                }
+            }
+        }
+        .padding(.vertical, 20)
         .padding(.horizontal, 20)
         .background(Color(hex: "#374151"))
         .cornerRadius(20)
@@ -60,62 +124,160 @@ struct CharacterView: View {
         .padding(.top, 20)
     }
     
-    private var statsDisplayView: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Username
-            Text(progressManager.userProgress?.displayName ?? "Hunter")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(.white)
-            
-            // Read-only stats - HP calculated dynamically
-            Text("❤️ HP: \(150 + ((tempStats["STR"] ?? 10) * 5))")
-                .font(.subheadline)
-                .foregroundColor(.white)
-            
-            Text("⚔️ STR: \(tempStats["STR"] ?? 10)")
-                .font(.subheadline)
-                .foregroundColor(.white)
-            
-            Text("⚡ AGI: \(tempStats["AGI"] ?? 10)")
-                .font(.subheadline)
-                .foregroundColor(.white)
-            
-            Text("🧠 INT: \(tempStats["INT"] ?? 10)")
-                .font(.subheadline)
-                .foregroundColor(.white)
-            
-            Text("🛡️ VIT: \(tempStats["VIT"] ?? 10)")
-                .font(.subheadline)
-                .foregroundColor(.white)
-            
-            // Points Available and Allocate Button (only if points > 0)
-            if availablePoints > 0 {
-                Text("📊 \(availablePoints) Points Available")
-                    .font(.subheadline)
+    private func profileItemSlot(item: PortalItem?) -> some View {
+        Group {
+            if let item = item {
+                // Filled slot with item
+                AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .tint(.white)
+                            .frame(width: 70, height: 70)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 70, height: 70)
+                            .padding(6)
+                    case .failure:
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 36))
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                            .frame(width: 70, height: 70)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+                .frame(width: 70, height: 70)
+                .background(Color(hex: "#243447"))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(item.rankColor, lineWidth: 2)
+                )
+                .cornerRadius(8)
+            } else {
+                // Empty slot
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color(hex: "#9CA3AF").opacity(0.3), lineWidth: 1)
+                    .frame(width: 70, height: 70)
+                    .overlay(
+                        Image(systemName: "plus")
+                            .font(.system(size: 22))
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                    )
+            }
+        }
+    }
+    
+    private var statsCardSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header with Allocate Points
+            HStack {
+                Text("STATS")
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundColor(.white)
-                    .padding(.top, 4)
                 
-                Button(action: {
+                Spacer()
+                
+                // Allocate points (right-aligned)
+                HStack(spacing: 4) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "#FBBF24"))
+                    
+                    Text("+\(availablePoints) points")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Color(hex: "#FBBF24"))
+                }
+                .modifier(PulsatingGlowModifier(isActive: availablePoints > 0))
+                .onTapGesture {
                     originalStats = tempStats
                     workingStats = tempStats
                     showStatAllocation = true
-                }) {
-                    Text("ALLOCATE POINTS")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 16)
-                        .background(Color(hex: "#6B46C1"))
-                        .cornerRadius(8)
                 }
-                .padding(.top, 4)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            
+            // Stats Grid (2 columns: Left: HP, AGI, VIT | Right: STR, INT)
+            HStack(alignment: .top, spacing: 20) {
+                // Left Column
+                VStack(alignment: .leading, spacing: 12) {
+                    statRow(
+                        label: "HP",
+                        baseValue: 150 + ((tempStats["STR"] ?? 10) * 5) + ((itemBonuses["STR"] ?? 0) * 5),
+                        bonus: 0,
+                        labelColor: Color(hex: "#FF8080")
+                    )
+                    
+                    statRow(
+                        label: "AGI",
+                        baseValue: tempStats["AGI"] ?? 10,
+                        bonus: itemBonuses["AGI"] ?? 0,
+                        labelColor: Color(hex: "#7CFF7C")
+                    )
+                    
+                    statRow(
+                        label: "VIT",
+                        baseValue: tempStats["VIT"] ?? 10,
+                        bonus: itemBonuses["VIT"] ?? 0,
+                        labelColor: Color(hex: "#C080FF")
+                    )
+                }
+                
+                // Right Column
+                VStack(alignment: .leading, spacing: 12) {
+                    statRow(
+                        label: "STR",
+                        baseValue: tempStats["STR"] ?? 10,
+                        bonus: itemBonuses["STR"] ?? 0,
+                        labelColor: Color(hex: "#FFD580")
+                    )
+                    
+                    statRow(
+                        label: "INT",
+                        baseValue: tempStats["INT"] ?? 10,
+                        bonus: itemBonuses["INT"] ?? 0,
+                        labelColor: Color(hex: "#80D8FF")
+                    )
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: "#2D3748"))
+        .cornerRadius(20)
+        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+        .padding(.horizontal, 20)
     }
     
-    private var levelRankStreakSection: some View {
+    private func statRow(label: String, baseValue: Int, bonus: Int, labelColor: Color) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(labelColor)
+            
+            Spacer()
+            
+            HStack(spacing: 4) {
+                Text("\(baseValue)")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                
+                if bonus > 0 {
+                    Text("+\(bonus)")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color(hex: "#22C55E"))
+                }
+            }
+        }
+    }
+    
+    private var levelRankSection: some View {
         HStack(spacing: 12) {
+            Spacer()
+            
             Text("Level \(progressManager.currentLevel)")
                 .font(.headline)
                 .foregroundColor(Color(hex: "#A770FF"))
@@ -128,24 +290,8 @@ struct CharacterView: View {
                 .font(.headline)
                 .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
             
-            Text("|")
-                .font(.headline)
-                .foregroundColor(Color(hex: "#9CA3AF"))
-            
-            HStack(spacing: 4) {
-                Text("🔥")
-                    .font(.system(size: 16))
-                Text("\(progressManager.currentStreak) streak")
-                    .font(.headline)
-                    .foregroundColor(.white)
-            }
+            Spacer()
         }
-    }
-    
-    private var rankTitleSection: some View {
-        Text(progressManager.currentRankInfo.title)
-            .font(.subheadline)
-            .foregroundColor(Color(hex: "#9CA3AF"))
     }
     
     private var xpProgressBarSection: some View {
@@ -185,29 +331,6 @@ struct CharacterView: View {
         }
     }
     
-    private var equippedItemsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("EQUIPPED ITEMS")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 20)
-            
-            if isLoadingInventory {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                        .tint(.white)
-                    Spacer()
-                }
-                .padding(.vertical, 40)
-            } else if let error = inventoryError {
-                inventoryErrorView(error)
-            } else {
-                equippedItemsGrid
-            }
-        }
-    }
-    
     private func inventoryErrorView(_ error: String) -> some View {
         VStack(spacing: 12) {
             Text("Failed to load inventory")
@@ -231,59 +354,28 @@ struct CharacterView: View {
         .padding(.vertical, 40)
     }
     
-    private var equippedItemsGrid: some View {
-        let equippedItems = (inventory?.items ?? []).filter { $0.equipped }
-        let emptySlots = max(0, 8 - equippedItems.count)
-        
-        return LazyVGrid(columns: [
-            GridItem(.flexible(), spacing: 8),
-            GridItem(.flexible(), spacing: 8),
-            GridItem(.flexible(), spacing: 8),
-            GridItem(.flexible(), spacing: 8)
-        ], spacing: 8) {
-            // Show equipped items
-            ForEach(equippedItems) { item in
-                EquippedSlot(item: item)
-            }
-            
-            // Show empty slots
-            ForEach(0..<emptySlots, id: \.self) { _ in
-                EmptySlot {
-                    showInventoryPopup = true
-                }
-            }
-        }
-        .padding(.horizontal, 20)
-    }
-    
-    private var manageInventoryButton: some View {
-        Button(action: {
-            showInventoryPopup = true
-        }) {
-            Text("MANAGE INVENTORY")
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color(hex: "#F59E0B"))
-                .cornerRadius(12)
-        }
-        .padding(.horizontal, 20)
-    }
-    
     private var challengeButton: some View {
         Button(action: {
             showChallengeAlert = true
         }) {
-            Text("⚔️ CHALLENGE HUNTERS")
+            Text("⚔️ FIND OPPONENT")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(.black)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(Color(hex: "#6B46C1"))
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(hex: "#FFE766"),
+                            Color(hex: "#E87B41")
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
                 .cornerRadius(25)
-                .shadow(color: Color(hex: "#6B46C1").opacity(0.6), radius: 15, x: 0, y: 0)
-                .shadow(color: Color(hex: "#4A90E2").opacity(0.4), radius: 25, x: 0, y: 0)
+                .shadow(color: Color(hex: "#FFE766").opacity(0.4), radius: 15, x: 0, y: 0)
+                .shadow(color: Color(hex: "#E87B41").opacity(0.3), radius: 25, x: 0, y: 0)
         }
         .padding(.horizontal, 30)
         .padding(.bottom, 40)
@@ -299,11 +391,8 @@ struct CharacterView: View {
                 ScrollView {
                     VStack(spacing: 24) {
                         profileCardSection
-                        levelRankStreakSection
-                        rankTitleSection
                         xpProgressBarSection
-                        equippedItemsSection
-                        manageInventoryButton
+                        statsCardSection
                         challengeButton
                     }
                 }
@@ -1126,6 +1215,93 @@ struct ItemDetailsPopup: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 30)
             }
+        }
+    }
+}
+
+// MARK: - Border Glow Pulse Modifier
+
+struct BorderGlowPulseModifier: ViewModifier {
+    let isActive: Bool
+    @State private var glowOpacity: Double = 0.3
+    
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(
+                        Color(hex: "#FBBF24"),
+                        lineWidth: isActive ? 2 : 0
+                    )
+                    .shadow(
+                        color: isActive ? Color(hex: "#FBBF24").opacity(glowOpacity) : .clear,
+                        radius: isActive ? 8 : 0
+                    )
+                    .shadow(
+                        color: isActive ? Color(hex: "#FBBF24").opacity(glowOpacity * 0.5) : .clear,
+                        radius: isActive ? 12 : 0
+                    )
+            )
+            .onAppear {
+                if isActive {
+                    startPulsing()
+                }
+            }
+            .onChange(of: isActive) { newValue in
+                if newValue {
+                    startPulsing()
+                } else {
+                    glowOpacity = 0.3
+                }
+            }
+    }
+    
+    private func startPulsing() {
+        withAnimation(
+            Animation.easeInOut(duration: 1.5)
+                .repeatForever(autoreverses: true)
+        ) {
+            glowOpacity = 0.8
+        }
+    }
+}
+
+// MARK: - Pulsating Glow Modifier
+
+struct PulsatingGlowModifier: ViewModifier {
+    let isActive: Bool
+    @State private var isPulsing = false
+    
+    func body(content: Content) -> some View {
+        content
+            .shadow(
+                color: isActive ? Color(hex: "#FBBF24").opacity(isPulsing ? 0.8 : 0.3) : .clear,
+                radius: isActive ? (isPulsing ? 10 : 4) : 0
+            )
+            .shadow(
+                color: isActive ? Color(hex: "#FBBF24").opacity(isPulsing ? 0.4 : 0.1) : .clear,
+                radius: isActive ? (isPulsing ? 16 : 8) : 0
+            )
+            .onAppear {
+                if isActive {
+                    startPulsing()
+                }
+            }
+            .onChange(of: isActive) { newValue in
+                if newValue {
+                    startPulsing()
+                } else {
+                    isPulsing = false
+                }
+            }
+    }
+    
+    private func startPulsing() {
+        withAnimation(
+            Animation.easeInOut(duration: 1.2)
+                .repeatForever(autoreverses: true)
+        ) {
+            isPulsing = true
         }
     }
 }
