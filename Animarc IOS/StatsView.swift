@@ -28,7 +28,6 @@ struct StatsView: View {
     @State private var displayedSessions: [FocusSession] = []
     @State private var stats: (totalMinutes: Int, totalXP: Int, avgMinutes: Int, longestMinutes: Int) = (0, 0, 0, 0)
     @State private var isLoading = true
-    @State private var showProfile = false
     
     var body: some View {
         NavigationStack {
@@ -159,17 +158,6 @@ struct StatsView: View {
                             .padding(.bottom, 40)
                         }
                     }
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    AvatarButton(showProfile: $showProfile)
-                }
-            }
-            .sheet(isPresented: $showProfile) {
-                NavigationStack {
-                    ProfileView(navigationPath: .constant(NavigationPath()))
-                        .environmentObject(progressManager)
                 }
             }
         }

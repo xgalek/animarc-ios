@@ -9,10 +9,8 @@ import SwiftUI
 import FamilyControls
 
 struct ProfileView: View {
-    @Binding var navigationPath: NavigationPath
     @EnvironmentObject var progressManager: UserProgressManager
     @StateObject private var appBlockingManager = AppBlockingManager.shared
-    @Environment(\.dismiss) var dismiss
     @State private var notificationsEnabled = true
     @State private var soundsEnabled = true
     @State private var sessionsToday: [FocusSession] = []
@@ -321,30 +319,7 @@ struct ProfileView: View {
                     .padding(.bottom, 40)
                 }
             }
-            
-            // Top Navigation Bar
-            VStack {
-                HStack {
-                    Spacer()
-                    
-                    // Close button
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 32, height: 32)
-                            .background(Color(hex: "#374151"))
-                            .clipShape(Circle())
-                    }
-                    .padding(.trailing, 20)
-                    .padding(.top, 20)
-                }
-                Spacer()
-            }
         }
-        .navigationBarBackButtonHidden(true)
         .task {
             isLoadingStats = true
             sessionsToday = await progressManager.getSessionsToday()
@@ -456,8 +431,6 @@ struct SettingsRow: View {
 }
 
 #Preview {
-    NavigationStack {
-        ProfileView(navigationPath: .constant(NavigationPath()))
-            .environmentObject(UserProgressManager.shared)
-    }
+    ProfileView()
+        .environmentObject(UserProgressManager.shared)
 }

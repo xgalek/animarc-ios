@@ -80,7 +80,14 @@ struct MainTabView: View {
             CharacterView()
                 .environmentObject(progressManager)
                 .tabItem {
-                    Label("Character", systemImage: "person.fill")
+                    Label("Character", systemImage: "shield.fill")
+                }
+            
+            // Settings Tab
+            ProfileView()
+                .environmentObject(progressManager)
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape.fill")
                 }
         }
         .tint(Color(hex: "#8B5CF6"))

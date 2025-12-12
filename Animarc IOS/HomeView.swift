@@ -14,7 +14,6 @@ struct HomeView: View {
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var quoteManager = QuoteManager.shared
     @State private var navigationPath = NavigationPath()
-    @State private var showProfile = false
     @State private var showLevelUpModal = false
     @State private var showItemDropModal = false
     @State private var showStreakCelebration = false
@@ -138,9 +137,6 @@ struct HomeView: View {
                     .animation(.easeInOut(duration: 0.3), value: progressManager.isLoading)
                     
                     Spacer()
-                    
-                    // Avatar button
-                    AvatarButton(showProfile: $showProfile)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -210,12 +206,6 @@ struct HomeView: View {
                     let durationStr = destination.replacingOccurrences(of: "Reward-", with: "")
                     let duration = Int(durationStr) ?? 0
                     RewardView(sessionDuration: duration, navigationPath: $navigationPath)
-                        .environmentObject(progressManager)
-                }
-            }
-            .sheet(isPresented: $showProfile) {
-                NavigationStack {
-                    ProfileView(navigationPath: .constant(NavigationPath()))
                         .environmentObject(progressManager)
                 }
             }

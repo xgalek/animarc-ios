@@ -9,7 +9,6 @@ import SwiftUI
 
 struct CharacterView: View {
     @EnvironmentObject var progressManager: UserProgressManager
-    @State private var showProfile = false
     @State private var showChallengeAlert = false
     @State private var selectedPortalItem: PortalItem?
     @State private var showStatAllocation = false
@@ -401,17 +400,6 @@ struct CharacterView: View {
                         statsCardSection
                         challengeButton
                     }
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    AvatarButton(showProfile: $showProfile)
-                }
-            }
-            .sheet(isPresented: $showProfile) {
-                NavigationStack {
-                    ProfileView(navigationPath: .constant(NavigationPath()))
-                        .environmentObject(progressManager)
                 }
             }
             .alert("Coming Soon!", isPresented: $showChallengeAlert) {
