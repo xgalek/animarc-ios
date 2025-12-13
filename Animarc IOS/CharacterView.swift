@@ -107,13 +107,17 @@ struct CharacterView: View {
                     Button(action: {
                         showInventoryPopup = true
                     }) {
-                        Text("Inventory")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.black)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 12)
-                            .background(Color(hex: "#F59E0B"))
-                            .cornerRadius(8)
+                        HStack(spacing: 6) {
+                            Image(systemName: "shippingbox.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Inventory")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundColor(.black)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Color(hex: "#F59E0B"))
+                        .cornerRadius(8)
                     }
                 }
             }
@@ -280,59 +284,75 @@ struct CharacterView: View {
     }
     
     private var levelRankSection: some View {
-        HStack(spacing: 12) {
-            Spacer()
-            
-            Text("Level \(progressManager.currentLevel)")
-                .font(.headline)
-                .foregroundColor(Color(hex: "#A770FF"))
-            
-            Text("|")
-                .font(.headline)
-                .foregroundColor(Color(hex: "#9CA3AF"))
-            
-            Text("\(progressManager.currentRank)-Rank")
-                .font(.headline)
-                .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
-            
-            Spacer()
-        }
-    }
-    
-    private var xpProgressBarSection: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text(progressManager.levelProgress.progressText)
-                    .font(.subheadline)
-                    .foregroundColor(Color(hex: "#9CA3AF"))
-                Spacer()
-                Text("\(Int(progressManager.levelProgress.progressPercent))%")
-                    .font(.subheadline)
-                    .foregroundColor(Color(hex: "#9CA3AF"))
-            }
-            
+        HStack(spacing: 8) {
+            // XP Progress Bar - thicker with level on left and XP on right
             GeometryReader { geometry in
-                xpProgressBarContent(geometry: geometry)
+                let progressPercent = progressManager.levelProgress.progressPercent
+                let progressWidth = geometry.size.width * (progressPercent / 100.0)
+                
+                ZStack(alignment: .leading) {
+                    // Background
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(hex: "#9CA3AF").opacity(0.3))
+                    
+                    // Progress fill - orange
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(hex: "#FF9500"))
+                        .frame(width: max(progressWidth, 0))
+                    
+                    // Level text on left and XP text on right
+                    HStack {
+                        // Level label on the left
+                        if progressManager.isLoading {
+                            Text("LV.1")
+                                .font(.caption)
+                                .foregroundColor(.white)
+                                .pulsing()
+                        } else {
+                            Text("LV.\(progressManager.currentLevel)")
+                                .font(.caption)
+                                .foregroundColor(.white)
+                        }
+                        
+                        Spacer()
+                        
+                        // XP text on the right
+                        if progressManager.isLoading {
+                            Text("0/0xp")
+                                .font(.caption)
+                                .foregroundColor(.white)
+                                .pulsing()
+                        } else {
+                            let levelProgress = progressManager.levelProgress
+                            Text("\(levelProgress.xpInCurrentLevel)/\(levelProgress.xpNeededForNext)xp")
+                                .font(.caption)
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                }
             }
-            .frame(height: 12)
-        }
-        .padding(.horizontal, 20)
-    }
-    
-    private func xpProgressBarContent(geometry: GeometryProxy) -> some View {
-        let progressPercent = progressManager.levelProgress.progressPercent
-        let progressWidth = geometry.size.width * (progressPercent / 100.0)
-        
-        return ZStack(alignment: .leading) {
-            // Background
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(hex: "#9CA3AF").opacity(0.3))
-                .frame(height: 12)
+            .frame(height: 24)
             
-            // Progress fill
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(hex: "#22C55E"))
-                .frame(width: progressWidth, height: 12)
+            // Rank badge - minimalistic
+            if progressManager.isLoading {
+                Text("E-Rank")
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color(hex: "#9CA3AF"))
+                    .cornerRadius(8)
+                    .pulsing()
+            } else {
+                Text("\(progressManager.currentRank)-Rank")
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(progressManager.currentRankInfo.swiftUIColor)
+                    .cornerRadius(8)
+            }
         }
     }
     
@@ -396,7 +416,6 @@ struct CharacterView: View {
                 ScrollView {
                     VStack(spacing: 24) {
                         profileCardSection
-                        xpProgressBarSection
                         statsCardSection
                         challengeButton
                     }
