@@ -68,78 +68,103 @@ struct HomeView: View {
                         }
                         
                         // Top Status Bar
-                        HStack {
-                    // Fire emoji and streak number (tappable to show celebration)
-                    Button(action: {
-                        if !progressManager.isLoading {
-                            showStreakCelebrationManually()
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Text("🔥")
-                                .font(.system(size: 20))
+                        HStack(spacing: 8) {
+                            // Fire emoji and streak number (tappable to show celebration)
+                            Button(action: {
+                                if !progressManager.isLoading {
+                                    showStreakCelebrationManually()
+                                }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Text("🔥")
+                                        .font(.system(size: 20))
+                                    if progressManager.isLoading {
+                                        Text("0")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                            .pulsing()
+                                    } else {
+                                        Text("\(progressManager.currentStreak)")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .disabled(progressManager.isLoading)
+                            
+                            // XP Progress Bar - thicker with level on left and XP on right
+                            GeometryReader { geometry in
+                                let progressPercent = progressManager.levelProgress.progressPercent
+                                let progressWidth = geometry.size.width * (progressPercent / 100.0)
+                                
+                                ZStack(alignment: .leading) {
+                                    // Background
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(Color(hex: "#9CA3AF").opacity(0.3))
+                                    
+                                    // Progress fill - orange
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(Color(hex: "#FF9500"))
+                                        .frame(width: max(progressWidth, 0))
+                                    
+                                    // Level text on left and XP text on right
+                                    HStack {
+                                        // Level label on the left
+                                        if progressManager.isLoading {
+                                            Text("LV.1")
+                                                .font(.caption)
+                                                .foregroundColor(.white)
+                                                .pulsing()
+                                        } else {
+                                            Text("LV.\(progressManager.currentLevel)")
+                                                .font(.caption)
+                                                .foregroundColor(.white)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        // XP text on the right
+                                        if progressManager.isLoading {
+                                            Text("0/0xp")
+                                                .font(.caption)
+                                                .foregroundColor(.white)
+                                                .pulsing()
+                                        } else {
+                                            let levelProgress = progressManager.levelProgress
+                                            Text("\(levelProgress.xpInCurrentLevel)/\(levelProgress.xpNeededForNext)xp")
+                                                .font(.caption)
+                                                .foregroundColor(.white)
+                                        }
+                                    }
+                                    .padding(.horizontal, 8)
+                                }
+                            }
+                            .frame(height: 24)
+                            
+                            // Rank badge - minimalistic
                             if progressManager.isLoading {
-                                Text("0")
-                                    .font(.headline)
+                                Text("E-Rank")
+                                    .font(.caption)
                                     .foregroundColor(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(Color(hex: "#9CA3AF"))
+                                    .cornerRadius(8)
                                     .pulsing()
                             } else {
-                                Text("\(progressManager.currentStreak)")
-                                    .font(.headline)
+                                Text("\(progressManager.currentRank)-Rank")
+                                    .font(.caption)
                                     .foregroundColor(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(progressManager.currentRankInfo.swiftUIColor)
+                                    .cornerRadius(8)
                             }
                         }
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .disabled(progressManager.isLoading)
-                    
-                    Spacer()
-                    
-                    // Stats text with different colors
-                    HStack(spacing: 4) {
-                        if progressManager.isLoading {
-                            Text("E-Rank")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "#9CA3AF"))
-                                .pulsing()
-                        } else {
-                            Text("\(progressManager.currentRank)-Rank")
-                                .font(.headline)
-                                .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
-                        }
-                        Text("|")
-                            .font(.headline)
-                            .foregroundColor(Color(hex: "#9CA3AF"))
-                        if progressManager.isLoading {
-                            Text("LVL 1")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "#9CA3AF"))
-                                .pulsing()
-                        } else {
-                            Text("LVL \(progressManager.currentLevel)")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "#A770FF"))
-                        }
-                        Text("|")
-                            .font(.headline)
-                            .foregroundColor(Color(hex: "#9CA3AF"))
-                        if progressManager.isLoading {
-                            Text("0 xp")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "#9CA3AF"))
-                                .pulsing()
-                        } else {
-                            Text("\(progressManager.totalXP) xp")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "#22C55E"))
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.3), value: progressManager.isLoading)
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .animation(.easeInOut(duration: 0.3), value: progressManager.isLoading)
                 
                 Spacer()
                 
