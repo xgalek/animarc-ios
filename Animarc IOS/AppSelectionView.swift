@@ -4,7 +4,11 @@
 //
 //  View for selecting apps to block during focus sessions
 //
+//  TEMPORARILY DISABLED: Commented out pending Apple's approval of Family Controls entitlement.
+//  This code will be re-enabled once the entitlement is approved.
+//
 
+/*
 import SwiftUI
 import FamilyControls
 
@@ -184,3 +188,4 @@ struct AppSelectionView: View {
 #Preview {
     AppSelectionView()
 }
+*/

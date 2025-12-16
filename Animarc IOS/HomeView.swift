@@ -6,24 +6,25 @@
 //
 
 import SwiftUI
-import FamilyControls
+// TEMPORARILY DISABLED: import FamilyControls // Commented out pending Apple's approval
 
 struct HomeView: View {
     @EnvironmentObject var progressManager: UserProgressManager
-    @StateObject private var appBlockingManager = AppBlockingManager.shared
+    // TEMPORARILY DISABLED: @StateObject private var appBlockingManager = AppBlockingManager.shared
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var quoteManager = QuoteManager.shared
     @State private var navigationPath = NavigationPath()
     @State private var showLevelUpModal = false
     @State private var showItemDropModal = false
     @State private var showStreakCelebration = false
-    @State private var showPermissionModal = false
-    @State private var showPermissionDeniedAlert = false
-    @State private var isRequestingPermission = false
+    // TEMPORARILY DISABLED: Permission-related state variables commented out
+    // @State private var showPermissionModal = false
+    // @State private var showPermissionDeniedAlert = false
+    // @State private var isRequestingPermission = false
     @State private var showFocusConfig = false
     @State private var isRefreshing = false
-    @State private var showTypingEffect = false
     @State private var currentQuote = ""
+    @State private var contentAppeared = false
     
     private let streakCelebrationKey = "lastStreakCelebrationShownDate"
     
@@ -82,7 +83,7 @@ struct HomeView: View {
                                         Text("0")
                                             .font(.headline)
                                             .foregroundColor(.white)
-                                            .pulsing()
+                                            .shimmer()
                                     } else {
                                         Text("\(progressManager.currentStreak)")
                                             .font(.headline)
@@ -115,7 +116,7 @@ struct HomeView: View {
                                             Text("LV.1")
                                                 .font(.caption)
                                                 .foregroundColor(.white)
-                                                .pulsing()
+                                                .shimmer()
                                         } else {
                                             Text("LV.\(progressManager.currentLevel)")
                                                 .font(.caption)
@@ -129,7 +130,7 @@ struct HomeView: View {
                                             Text("0/0xp")
                                                 .font(.caption)
                                                 .foregroundColor(.white)
-                                                .pulsing()
+                                                .shimmer()
                                         } else {
                                             let levelProgress = progressManager.levelProgress
                                             Text("\(levelProgress.xpInCurrentLevel)/\(levelProgress.xpNeededForNext)xp")
@@ -148,53 +149,52 @@ struct HomeView: View {
                                     .font(.caption)
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
+                                    .padding(.vertical, 5)
+                                    .frame(height: 24)
                                     .background(Color(hex: "#9CA3AF"))
                                     .cornerRadius(8)
-                                    .pulsing()
+                                    .shimmer()
                             } else {
                                 Text("\(progressManager.currentRank)-Rank")
                                     .font(.caption)
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
+                                    .padding(.vertical, 5)
+                                    .frame(height: 24)
                                     .background(progressManager.currentRankInfo.swiftUIColor)
                                     .cornerRadius(8)
                             }
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
+                        .opacity(contentAppeared ? 1 : 0)
+                        .offset(y: contentAppeared ? 0 : -30)
+                        .animation(.spring(response: 1.2, dampingFraction: 0.8), value: contentAppeared)
                         .animation(.easeInOut(duration: 0.3), value: progressManager.isLoading)
                 
                 Spacer()
                 
                 // Center Content - Vertically Centered
                 VStack(spacing: 0) {
-                    // Motivational quote with typing effect
-                    VStack(spacing: 0) {
-                        if showTypingEffect {
-                            TypingTextView(fullText: currentQuote, typingSpeed: 0.15) {
-                                // Animation complete
-                            }
-                            .font(.title3)
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.leading)
-                            .padding(.horizontal, 30)
-                        } else {
-                            Text(currentQuote)
-                                .font(.title3)
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.leading)
-                                .padding(.horizontal, 30)
-                        }
-                    }
-                    .padding(.bottom, 60)
+                    // Motivational quote
+                    Text(currentQuote)
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 30)
+                        .padding(.bottom, 60)
+                        .opacity(contentAppeared ? 1 : 0)
+                        .offset(y: contentAppeared ? 0 : 20)
+                        .animation(.easeOut(duration: 1.4), value: contentAppeared)
                     
                     // Portal Image
                     GIFImageView(gifName: "Green portal")
                         .frame(width: 200, height: 200)
                         .shadow(color: Color(hex: "#7FFF00").opacity(0.5), radius: 20, x: 0, y: 0)
                         .padding(.bottom, 70)
+                        .opacity(contentAppeared ? 1 : 0)
+                        .scaleEffect(contentAppeared ? 1 : 0.7)
+                        .animation(.spring(response: 1.2, dampingFraction: 0.7), value: contentAppeared)
                     
                     // Focus Button
                     Button(action: {
@@ -211,9 +211,13 @@ struct HomeView: View {
                             .shadow(color: Color(hex: "#4A90E2").opacity(0.4), radius: 25, x: 0, y: 0)
                     }
                     .padding(.horizontal, 30)
-                    .disabled(isRequestingPermission)
+                    .padding(.bottom, 50)
+                    .opacity(contentAppeared ? 1 : 0)
+                    .offset(y: contentAppeared ? 0 : 30)
+                    .animation(.spring(response: 1.2, dampingFraction: 0.8), value: contentAppeared)
+                    // TEMPORARILY DISABLED: .disabled(isRequestingPermission)
                 }
-                .padding(.top, 60)
+                .padding(.top, 100)
                 
                 Spacer()
                     }
@@ -238,21 +242,21 @@ struct HomeView: View {
                 // Load current quote
                 currentQuote = quoteManager.getCurrentQuote()
                 
-                // Check if typing effect should be shown
-                if quoteManager.shouldShowTypingEffect() {
-                    showTypingEffect = true
-                    quoteManager.markTypingEffectShown()
-                } else {
-                    showTypingEffect = false
+                // Trigger smooth fade-in animation for all elements
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    contentAppeared = true
                 }
                 
                 // Check for pending rewards when view appears (including when returning from RewardView)
                 checkAndShowPendingRewards()
                 // Check for streak celebration (after rewards)
                 checkAndShowStreakCelebration()
+                // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
                 // Refresh authorization status
-                appBlockingManager.refreshAuthorizationStatus()
+                // appBlockingManager.refreshAuthorizationStatus()
             }
+            // TEMPORARILY DISABLED: Permission modal and alert commented out pending Apple's approval
+            /*
             .sheet(isPresented: $showPermissionModal) {
                 AppBlockingPermissionModal(
                     isRequestingPermission: $isRequestingPermission,
@@ -276,6 +280,7 @@ struct HomeView: View {
             } message: {
                 Text("Focus sessions require app blocking permission. Please grant Screen Time permission in Settings to continue.")
             }
+            */
             .sheet(isPresented: $showLevelUpModal) {
                 LevelUpModalView(
                     oldLevel: progressManager.pendingLevelUp?.oldLevel ?? 1,
@@ -320,23 +325,28 @@ struct HomeView: View {
     // MARK: - Helper Methods
     
     private func handleFocusButtonTap() {
+        // TEMPORARILY DISABLED: Simplified to directly show focus config modal
+        // Permission checking logic commented out pending Apple's approval
         // Check if permission has been requested
-        if !appBlockingManager.hasRequestedPermission {
-            // First time - show permission modal
-            showPermissionModal = true
-            return
-        }
+        // if !appBlockingManager.hasRequestedPermission {
+        //     // First time - show permission modal
+        //     showPermissionModal = true
+        //     return
+        // }
+        //
+        // // Check current authorization status
+        // appBlockingManager.refreshAuthorizationStatus()
+        //
+        // if appBlockingManager.isAuthorized {
+        //     // Permission granted - show configuration modal first
+        //     showFocusConfig = true
+        // } else {
+        //     // Permission denied or revoked - show alert
+        //     showPermissionDeniedAlert = true
+        // }
         
-        // Check current authorization status
-        appBlockingManager.refreshAuthorizationStatus()
-        
-        if appBlockingManager.isAuthorized {
-            // Permission granted - show configuration modal first
-            showFocusConfig = true
-        } else {
-            // Permission denied or revoked - show alert
-            showPermissionDeniedAlert = true
-        }
+        // Directly show focus configuration modal
+        showFocusConfig = true
     }
     
     private func checkAndShowPendingRewards() {
@@ -1147,9 +1157,10 @@ struct FocusConfigurationModal: View {
     @Binding var navigationPath: NavigationPath
     @State private var selectedTag: String? = nil
     @State private var focusSettings = FocusSessionSettings.load()
-    @StateObject private var appBlockingManager = AppBlockingManager.shared
-    @State private var selection = FamilyActivitySelection()
-    @State private var showPicker = false
+    // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
+    // @StateObject private var appBlockingManager = AppBlockingManager.shared
+    // @State private var selection = FamilyActivitySelection()
+    // @State private var showPicker = false
     @Environment(\.dismiss) var dismiss
     
     private let focusTags = ["Deep Focus", "Study", "Reading", "Creative"]
@@ -1376,6 +1387,8 @@ struct FocusConfigurationModal: View {
         }
         .presentationDetents([.large, .medium])
         .presentationDragIndicator(.visible)
+        // TEMPORARILY DISABLED: FamilyActivityPicker commented out pending Apple's approval
+        /*
         .familyActivityPicker(isPresented: $showPicker, selection: $selection)
         .onChange(of: selection) { _, newSelection in
             let applicationTokens = newSelection.applicationTokens
@@ -1385,12 +1398,15 @@ struct FocusConfigurationModal: View {
         .onAppear {
             selection = appBlockingManager.selectedActivity
         }
+        */
     }
 }
 
 
 // MARK: - App Blocking Permission Modal
+// TEMPORARILY DISABLED: Commented out pending Apple's approval of Family Controls entitlement
 
+/*
 struct AppBlockingPermissionModal: View {
     @Binding var isRequestingPermission: Bool
     let onPermissionGranted: () -> Void
@@ -1509,6 +1525,7 @@ struct AppBlockingPermissionModal: View {
         }
     }
 }
+*/
 
 #Preview {
     HomeView()

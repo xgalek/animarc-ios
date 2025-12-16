@@ -6,20 +6,23 @@
 //
 
 import SwiftUI
-import FamilyControls
+// TEMPORARILY DISABLED: import FamilyControls // Commented out pending Apple's approval
 
 struct ProfileView: View {
     @EnvironmentObject var progressManager: UserProgressManager
-    @StateObject private var appBlockingManager = AppBlockingManager.shared
+    // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
+    // @StateObject private var appBlockingManager = AppBlockingManager.shared
     @State private var notificationsEnabled = true
     @State private var soundsEnabled = true
     @State private var sessionsToday: [FocusSession] = []
-    @State private var selection = FamilyActivitySelection()
-    @State private var showPicker = false
+    // TEMPORARILY DISABLED: FamilyActivitySelection state variables commented out
+    // @State private var selection = FamilyActivitySelection()
+    // @State private var showPicker = false
     @State private var showSignOutError = false
     @State private var signOutErrorMessage = ""
     @State private var isSigningOut = false
     @State private var isLoadingStats = false
+    @AppStorage("KeepScreenOnDuringFocus") private var keepScreenOn: Bool = true
     
     var body: some View {
         ZStack {
@@ -94,6 +97,42 @@ struct ProfileView: View {
                         .cornerRadius(15)
                         .padding(.horizontal, 20)
                         
+                        // Focus Settings Section
+                        Text("Focus Sessions")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                        
+                        VStack(spacing: 0) {
+                            SettingsRow(
+                                icon: "lock.open.fill",
+                                title: "Keep screen on",
+                                toggle: $keepScreenOn
+                            )
+                            
+                            // Info text
+                            HStack {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Color(hex: "#9CA3AF"))
+                                
+                                Text("Prevents phone from auto-locking during focus sessions")
+                                    .font(.caption)
+                                    .foregroundColor(Color(hex: "#9CA3AF"))
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(Color(hex: "#374151").opacity(0.5))
+                        }
+                        .background(Color(hex: "#374151"))
+                        .cornerRadius(15)
+                        .padding(.horizontal, 20)
+                        
+                        // TEMPORARILY DISABLED: App Allowlist Section commented out pending Apple's approval
+                        /*
                         // App Allowlist Section
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Allowed Apps")
@@ -242,6 +281,7 @@ struct ProfileView: View {
                             .padding(.horizontal, 20)
                         }
                         .padding(.top, 8)
+                        */
                         
                         // Future buttons placeholder
                         VStack(spacing: 12) {
@@ -324,8 +364,11 @@ struct ProfileView: View {
             isLoadingStats = true
             sessionsToday = await progressManager.getSessionsToday()
             isLoadingStats = false
-            appBlockingManager.refreshAuthorizationStatus()
+            // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
+            // appBlockingManager.refreshAuthorizationStatus()
         }
+        // TEMPORARILY DISABLED: FamilyActivityPicker commented out pending Apple's approval
+        /*
         .familyActivityPicker(isPresented: $showPicker, selection: $selection)
         .onChange(of: selection) { _, newSelection in
             // Update selection when user picks apps to allow
@@ -338,6 +381,7 @@ struct ProfileView: View {
             // Restore selection from manager when view appears
             selection = appBlockingManager.selectedActivity
         }
+        */
         .alert("Sign Out Error", isPresented: $showSignOutError) {
             Button("Retry") {
                 Task {

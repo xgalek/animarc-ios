@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 enum PomodoroPhase {
     case focus, rest
@@ -14,7 +15,8 @@ enum PomodoroPhase {
 struct FocusSessionView: View {
     @Binding var navigationPath: NavigationPath
     @EnvironmentObject var progressManager: UserProgressManager
-    @StateObject private var appBlockingManager = AppBlockingManager.shared
+    // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
+    // @StateObject private var appBlockingManager = AppBlockingManager.shared
     @Environment(\.dismiss) var dismiss
     @State private var settings: FocusSessionSettings = FocusSessionSettings.load()
     @State private var elapsedTime: Int = 0 // For stopwatch mode (counts up)
@@ -23,9 +25,11 @@ struct FocusSessionView: View {
     @State private var currentPhase: PomodoroPhase = .focus
     @State private var currentPomodoroNumber: Int = 1
     @State private var timer: Timer?
-    @State private var blockingError: String?
-    @State private var showBlockingError = false
+    // TEMPORARILY DISABLED: Blocking error state variables commented out
+    // @State private var blockingError: String?
+    // @State private var showBlockingError = false
     @State private var showEndConfirmation = false
+    @AppStorage("KeepScreenOnDuringFocus") private var keepScreenOn: Bool = true
     
     var body: some View {
         ZStack {
@@ -167,12 +171,16 @@ struct FocusSessionView: View {
             settings = FocusSessionSettings.load()
             initializeTimer()
             startTimer()
-            startAppBlocking()
+            // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
+            // startAppBlocking()
         }
         .onDisappear {
             stopTimer()
-            stopAppBlocking()
+            // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
+            // stopAppBlocking()
         }
+        // TEMPORARILY DISABLED: Blocking error alert commented out pending Apple's approval
+        /*
         .alert("Blocking Error", isPresented: $showBlockingError) {
             Button("OK") {
                 blockingError = nil
@@ -190,6 +198,7 @@ struct FocusSessionView: View {
                 Text(error)
             }
         }
+        */
     }
     
     // MARK: - Timer Functions
@@ -211,6 +220,11 @@ struct FocusSessionView: View {
     }
     
     private func startTimer() {
+        // Disable idle timer if setting is enabled (default ON)
+        if keepScreenOn {
+            UIApplication.shared.isIdleTimerDisabled = true
+        }
+        
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             handleTimerTick()
         }
@@ -264,6 +278,9 @@ struct FocusSessionView: View {
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+        
+        // ALWAYS re-enable idle timer when session ends
+        UIApplication.shared.isIdleTimerDisabled = false
     }
     
     private var formattedTime: String {
@@ -281,7 +298,9 @@ struct FocusSessionView: View {
     }
     
     // MARK: - App Blocking Functions
+    // TEMPORARILY DISABLED: Commented out pending Apple's approval of Family Controls entitlement
     
+    /*
     private func startAppBlocking() {
         // Refresh authorization status
         appBlockingManager.refreshAuthorizationStatus()
@@ -319,6 +338,7 @@ struct FocusSessionView: View {
         appBlockingManager.stopBlocking()
         print("FocusSessionView: App blocking stopped")
     }
+    */
 }
 
 #Preview {

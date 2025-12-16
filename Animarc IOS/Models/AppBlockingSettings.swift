@@ -4,7 +4,11 @@
 //
 //  Settings model for app blocking feature
 //
+//  TEMPORARILY DISABLED: Commented out pending Apple's approval of Family Controls entitlement.
+//  This code will be re-enabled once the entitlement is approved.
+//
 
+/*
 import Foundation
 
 /// Settings for app blocking feature with persistence
@@ -71,9 +75,4 @@ extension AppBlockingSettings {
         UserDefaults.standard.removeObject(forKey: userDefaultsKey)
     }
 }
-
-
-
-
-
-
+*/

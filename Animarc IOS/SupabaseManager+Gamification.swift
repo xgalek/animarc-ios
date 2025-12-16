@@ -370,18 +370,21 @@ extension SupabaseManager {
         return try await withRetry {
             let streak = try await self.fetchOrCreateStreak(userId: userId)
             
-            let calendar = Calendar.current
-            let today = calendar.startOfDay(for: Date())
+            // Use UTC calendar for consistent date comparisons
+            // Database stores dates as UTC midnight, so we must compare in UTC
+            var utcCalendar = Calendar.current
+            utcCalendar.timeZone = TimeZone(identifier: "UTC")!
+            let today = utcCalendar.startOfDay(for: Date())
             
             // If already visited today, no update needed
             if let lastVisit = streak.lastVisitDate {
-                let lastVisitDay = calendar.startOfDay(for: lastVisit)
+                let lastVisitDay = utcCalendar.startOfDay(for: lastVisit)
                 if lastVisitDay == today {
                     return streak
                 }
                 
                 // Check if yesterday - continue streak
-                let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+                let yesterday = utcCalendar.date(byAdding: .day, value: -1, to: today)!
                 let isConsecutive = lastVisitDay == yesterday
                 
                 var newCurrentStreak: Int

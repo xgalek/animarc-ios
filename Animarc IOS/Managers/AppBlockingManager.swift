@@ -4,7 +4,11 @@
 //
 //  Manager for iOS Screen Time app blocking during focus sessions
 //
+//  TEMPORARILY DISABLED: Commented out pending Apple's approval of Family Controls entitlement.
+//  This code will be re-enabled once the entitlement is approved.
+//
 
+/*
 import Foundation
 import FamilyControls
 import ManagedSettings
@@ -185,3 +189,4 @@ enum AppBlockingError: LocalizedError {
         }
     }
 }
+*/
