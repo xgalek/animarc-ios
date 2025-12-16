@@ -31,6 +31,9 @@ struct FocusSessionView: View {
     @State private var showEndConfirmation = false
     @AppStorage("KeepScreenOnDuringFocus") private var keepScreenOn: Bool = true
     
+    // Portal entry animation - starts fully black, fades to reveal the world
+    @State private var entryOverlayOpacity: Double = 1.0
+    
     var body: some View {
         ZStack {
             // Parallax Background
@@ -163,6 +166,13 @@ struct FocusSessionView: View {
                     .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
                 }
             }
+            
+            // Portal entry overlay - fades out to reveal the parallax world
+            // This creates the "emerging from portal" effect
+            Color.black
+                .opacity(entryOverlayOpacity)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .tabBar)
@@ -173,6 +183,18 @@ struct FocusSessionView: View {
             startTimer()
             // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
             // startAppBlocking()
+            
+            // Portal fade-reveal animation - emerge into the parallax world
+            // Haptic feedback when emerging
+            let haptic = UIImpactFeedbackGenerator(style: .light)
+            haptic.impactOccurred()
+            
+            // Fade from black to reveal the world (1.5 seconds)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.easeOut(duration: 1.5)) {
+                    entryOverlayOpacity = 0.0
+                }
+            }
         }
         .onDisappear {
             stopTimer()

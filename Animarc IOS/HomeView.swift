@@ -25,15 +25,18 @@ struct HomeView: View {
     @State private var isRefreshing = false
     @State private var currentQuote = ""
     @State private var contentAppeared = false
+    @State private var showPortalTransition = false
+    @State private var pendingNavigation: String? = nil
     
     private let streakCelebrationKey = "lastStreakCelebrationShownDate"
     
     var body: some View {
-        NavigationStack(path: $navigationPath) {
-            ZStack {
-                // Background
-                Color(hex: "#1A2332")
-                    .ignoresSafeArea()
+        ZStack {
+            NavigationStack(path: $navigationPath) {
+                ZStack {
+                    // Background
+                    Color(hex: "#1A2332")
+                        .ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 0) {
@@ -316,8 +319,34 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showFocusConfig) {
                 FocusConfigurationModal(
-                    navigationPath: $navigationPath
+                    navigationPath: $navigationPath,
+                    showPortalTransition: $showPortalTransition,
+                    pendingNavigation: $pendingNavigation
                 )
+            }
+            }
+            
+            // Portal transition overlay - appears ON TOP of HomeView
+            // This darkens over the existing portal, then shows particles
+            if showPortalTransition {
+                PortalTransitionOverlay {
+                    // Transition complete - navigate to focus session
+                    showPortalTransition = false
+                    
+                    // Disable the default navigation animation
+                    // This ensures a seamless black-to-black transition
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        if let destination = pendingNavigation {
+                            navigationPath.append(destination)
+                            pendingNavigation = nil
+                        } else {
+                            navigationPath.append("FocusSession")
+                        }
+                    }
+                }
+                .ignoresSafeArea()
             }
         }
     }
@@ -1155,6 +1184,8 @@ struct FocusSessionSettings: Codable {
 
 struct FocusConfigurationModal: View {
     @Binding var navigationPath: NavigationPath
+    @Binding var showPortalTransition: Bool
+    @Binding var pendingNavigation: String?
     @State private var selectedTag: String? = nil
     @State private var focusSettings = FocusSessionSettings.load()
     // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
@@ -1368,8 +1399,14 @@ struct FocusConfigurationModal: View {
                     // Start session button
                     Button(action: {
                         focusSettings.save()
+                        // Set pending navigation destination
+                        pendingNavigation = "FocusSession"
+                        // Dismiss modal instantly
                         dismiss()
-                        navigationPath.append("FocusSession")
+                        // Trigger portal transition after a tiny delay to ensure modal is dismissed
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            showPortalTransition = true
+                        }
                     }) {
                         Text("Start session")
                             .font(.headline)
