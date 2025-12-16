@@ -25,18 +25,20 @@ struct HomeView: View {
     @State private var isRefreshing = false
     @State private var currentQuote = ""
     @State private var contentAppeared = false
-    @State private var showPortalTransition = false
     @State private var pendingNavigation: String? = nil
+    
+    // Portal transition binding - controlled by MainTabView
+    @Binding var showPortalTransition: Bool
+    let onPortalTransitionComplete: (@escaping () -> Void) -> Void
     
     private let streakCelebrationKey = "lastStreakCelebrationShownDate"
     
     var body: some View {
-        ZStack {
-            NavigationStack(path: $navigationPath) {
-                ZStack {
-                    // Background
-                    Color(hex: "#1A2332")
-                        .ignoresSafeArea()
+        NavigationStack(path: $navigationPath) {
+            ZStack {
+                // Background
+                Color(hex: "#1A2332")
+                    .ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 0) {
@@ -321,32 +323,9 @@ struct HomeView: View {
                 FocusConfigurationModal(
                     navigationPath: $navigationPath,
                     showPortalTransition: $showPortalTransition,
-                    pendingNavigation: $pendingNavigation
+                    pendingNavigation: $pendingNavigation,
+                    onPortalTransitionComplete: onPortalTransitionComplete
                 )
-            }
-            }
-            
-            // Portal transition overlay - appears ON TOP of HomeView
-            // This darkens over the existing portal, then shows particles
-            if showPortalTransition {
-                PortalTransitionOverlay {
-                    // Transition complete - navigate to focus session
-                    showPortalTransition = false
-                    
-                    // Disable the default navigation animation
-                    // This ensures a seamless black-to-black transition
-                    var transaction = Transaction()
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) {
-                        if let destination = pendingNavigation {
-                            navigationPath.append(destination)
-                            pendingNavigation = nil
-                        } else {
-                            navigationPath.append("FocusSession")
-                        }
-                    }
-                }
-                .ignoresSafeArea()
             }
         }
     }
@@ -1186,6 +1165,7 @@ struct FocusConfigurationModal: View {
     @Binding var navigationPath: NavigationPath
     @Binding var showPortalTransition: Bool
     @Binding var pendingNavigation: String?
+    let onPortalTransitionComplete: (@escaping () -> Void) -> Void
     @State private var selectedTag: String? = nil
     @State private var focusSettings = FocusSessionSettings.load()
     // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
@@ -1401,6 +1381,17 @@ struct FocusConfigurationModal: View {
                         focusSettings.save()
                         // Set pending navigation destination
                         pendingNavigation = "FocusSession"
+                        
+                        // Set up the navigation callback for when portal transition completes
+                        onPortalTransitionComplete {
+                            // Disable the default navigation animation
+                            var transaction = Transaction()
+                            transaction.disablesAnimations = true
+                            withTransaction(transaction) {
+                                navigationPath.append("FocusSession")
+                            }
+                        }
+                        
                         // Dismiss modal instantly
                         dismiss()
                         // Trigger portal transition after a tiny delay to ensure modal is dismissed
@@ -1565,6 +1556,9 @@ struct AppBlockingPermissionModal: View {
 */
 
 #Preview {
-    HomeView()
+    HomeView(
+        showPortalTransition: .constant(false),
+        onPortalTransitionComplete: { _ in }
+    )
         .environmentObject(UserProgressManager.shared)
 }

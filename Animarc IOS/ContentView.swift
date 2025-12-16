@@ -8,8 +8,13 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var showPortalTransition = false
+    
     var body: some View {
-        HomeView()
+        HomeView(
+            showPortalTransition: $showPortalTransition,
+            onPortalTransitionComplete: { _ in }
+        )
     }
 }
 

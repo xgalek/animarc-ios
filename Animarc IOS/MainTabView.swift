@@ -36,6 +36,10 @@ extension UIColor {
 struct MainTabView: View {
     @EnvironmentObject var progressManager: UserProgressManager
     
+    // Portal transition state - shared with HomeView
+    @State private var showPortalTransition = false
+    @State private var portalTransitionComplete: (() -> Void)? = nil
+    
     init() {
         // Style the tab bar appearance
         let appearance = UITabBarAppearance()
@@ -61,36 +65,53 @@ struct MainTabView: View {
     }
     
     var body: some View {
-        TabView {
-            // Home Tab
-            HomeView()
-                .environmentObject(progressManager)
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")
-                }
+        ZStack {
+            TabView {
+                // Home Tab
+                HomeView(
+                    showPortalTransition: $showPortalTransition,
+                    onPortalTransitionComplete: { completion in
+                        portalTransitionComplete = completion
+                    }
+                )
+                    .environmentObject(progressManager)
+                    .tabItem {
+                        Label("Home", systemImage: "house.fill")
+                    }
+                
+                // Stats Tab
+                StatsView()
+                    .environmentObject(progressManager)
+                    .tabItem {
+                        Label("Stats", systemImage: "chart.bar.fill")
+                    }
+                
+                // Character Tab
+                CharacterView()
+                    .environmentObject(progressManager)
+                    .tabItem {
+                        Label("Character", systemImage: "shield.fill")
+                    }
+                
+                // Settings Tab
+                ProfileView()
+                    .environmentObject(progressManager)
+                    .tabItem {
+                        Label("Settings", systemImage: "gearshape.fill")
+                    }
+            }
+            .tint(Color(hex: "#8B5CF6"))
             
-            // Stats Tab
-            StatsView()
-                .environmentObject(progressManager)
-                .tabItem {
-                    Label("Stats", systemImage: "chart.bar.fill")
+            // Portal transition overlay - covers everything including tab bar
+            if showPortalTransition {
+                PortalTransitionOverlay {
+                    showPortalTransition = false
+                    portalTransitionComplete?()
+                    portalTransitionComplete = nil
                 }
-            
-            // Character Tab
-            CharacterView()
-                .environmentObject(progressManager)
-                .tabItem {
-                    Label("Character", systemImage: "shield.fill")
-                }
-            
-            // Settings Tab
-            ProfileView()
-                .environmentObject(progressManager)
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
+                .ignoresSafeArea()
+            }
         }
-        .tint(Color(hex: "#8B5CF6"))
     }
 }
 

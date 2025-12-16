@@ -34,6 +34,10 @@ struct FocusSessionView: View {
     // Portal entry animation - starts fully black, fades to reveal the world
     @State private var entryOverlayOpacity: Double = 1.0
     
+    // Exit transition - fades parallax world to black before navigating to rewards
+    @State private var showExitTransition = false
+    @State private var pendingRewardDestination: String? = nil
+    
     var body: some View {
         ZStack {
             // Parallax Background
@@ -146,7 +150,7 @@ struct FocusSessionView: View {
                                 stopTimer()
                                 // Pass total elapsed time in seconds to RewardView
                                 let timeForReward = settings.mode == .stopwatch ? elapsedTime : totalElapsedTime
-                                navigationPath.append("Reward-\(timeForReward)")
+                                navigateToRewards(duration: timeForReward)
                             }) {
                                 Text("End")
                                     .font(.system(size: 16, weight: .semibold))
@@ -173,6 +177,25 @@ struct FocusSessionView: View {
                 .opacity(entryOverlayOpacity)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+            
+            // Exit transition overlay - fades parallax world to black before navigating to rewards
+            if showExitTransition {
+                ExitTransitionOverlay {
+                    // Transition complete - navigate to reward screen
+                    showExitTransition = false
+                    
+                    // Disable the default navigation animation for seamless black-to-black transition
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        if let destination = pendingRewardDestination {
+                            navigationPath.append(destination)
+                            pendingRewardDestination = nil
+                        }
+                    }
+                }
+                .ignoresSafeArea()
+            }
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .tabBar)
@@ -262,9 +285,9 @@ struct FocusSessionView: View {
                 remainingTime -= 1
                 totalElapsedTime += 1
             } else {
-                // Timer complete - go to rewards
+                // Timer complete - go to rewards with transition
                 stopTimer()
-                navigationPath.append("Reward-\(totalElapsedTime)")
+                navigateToRewards(duration: totalElapsedTime)
             }
         case .pomodoro:
             handlePomodoroTimer()
@@ -280,9 +303,9 @@ struct FocusSessionView: View {
             if currentPhase == .focus {
                 // Check if this was the last pomodoro
                 if currentPomodoroNumber == settings.pomodoroCount {
-                    // End session - go to rewards (skip last break)
+                    // End session - go to rewards with transition (skip last break)
                     stopTimer()
-                    navigationPath.append("Reward-\(totalElapsedTime)")
+                    navigateToRewards(duration: totalElapsedTime)
                 } else {
                     // Start break phase
                     currentPhase = .rest
@@ -317,6 +340,16 @@ struct FocusSessionView: View {
         let minutes = time / 60
         let seconds = time % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    // MARK: - Navigation Helper
+    
+    private func navigateToRewards(duration: Int) {
+        // Store the destination
+        pendingRewardDestination = "Reward-\(duration)"
+        
+        // Trigger exit transition
+        showExitTransition = true
     }
     
     // MARK: - App Blocking Functions

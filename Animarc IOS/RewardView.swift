@@ -19,13 +19,24 @@ struct RewardView: View {
     @State private var errorMessage = ""
     @State private var processingTimeout: Task<Void, Never>?
     
+    // Animation state variables for entrance animations
+    @State private var campOpacity: Double = 1.0
+    @State private var durationTextOpacity: Double = 0
+    @State private var xpTextOpacity: Double = 0
+    @State private var xpScale: CGFloat = 0.8
+    @State private var breakdownOpacity: Double = 0
+    @State private var breakdownOffset: CGFloat = 20
+    @State private var continueButtonOpacity: Double = 0
+    @State private var animationsStarted = false
+    
     var body: some View {
         ZStack {
-            // Animated GIF Background
+            // Animated GIF Background - fades in from black
             GIFImageView(gifName: "Animation_camp", contentMode: .scaleAspectFill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
                 .ignoresSafeArea()
+                .opacity(campOpacity)
             
             VStack(spacing: 0) {
                 // Top Section - Close button
@@ -43,16 +54,21 @@ struct RewardView: View {
                 }
                 
                 if isProcessing {
-                    // Loading state
-                    VStack(spacing: 20) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                            .tint(.white)
-                        Text("Calculating rewards...")
-                            .font(.headline)
-                            .foregroundColor(.white)
+                    // Subtle loading indicator - small corner indicator
+                    VStack {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .tint(.white)
+                                .padding(12)
+                                .background(Color.black.opacity(0.3))
+                                .cornerRadius(12)
+                                .padding(.top, 20)
+                                .padding(.trailing, 20)
+                        }
+                        Spacer()
                     }
-                    .padding(.top, 40)
                 } else if hasError {
                     // Error state
                     VStack(spacing: 24) {
@@ -100,21 +116,24 @@ struct RewardView: View {
                 } else {
                     // Top Content
                     VStack(spacing: 24) {
-                        // Session duration
+                        // Session duration - fades in
                         Text("Focused for \(formattedDuration)")
                             .font(.system(size: 24, weight: .semibold))
                             .foregroundColor(.white)
+                            .opacity(durationTextOpacity)
                         
-                        // XP reward display
+                        // XP reward display - fades in with scale pop
                         Text("+\(sessionReward?.xpCalculation.totalXP ?? 0) XP")
                             .font(.system(size: 36, weight: .bold))
                             .foregroundColor(Color(hex: "#22C55E"))
                             .shadow(color: Color(hex: "#22C55E").opacity(0.5), radius: 10, x: 0, y: 0)
+                            .opacity(xpTextOpacity)
+                            .scaleEffect(xpScale)
                         
                         // XP Breakdown in its own box
                         if let xpCalc = sessionReward?.xpCalculation {
                             VStack(spacing: 16) {
-                                // XP Breakdown Box
+                                // XP Breakdown Box - fades in with slide up
                                 VStack(spacing: 12) {
                                     ForEach(xpCalc.breakdown, id: \.label) { item in
                                         HStack {
@@ -133,8 +152,10 @@ struct RewardView: View {
                                 .padding(.vertical, 16)
                                 .background(Color.black.opacity(0.3))
                                 .cornerRadius(12)
+                                .opacity(breakdownOpacity)
+                                .offset(y: breakdownOffset)
                                 
-                                // Continue button below the box, right-aligned
+                                // Continue button below the box, right-aligned - fades in
                                 HStack {
                                     Spacer()
                                     Button(action: {
@@ -149,7 +170,7 @@ struct RewardView: View {
                                             .cornerRadius(15)
                                     }
                                     .disabled(isProcessing)
-                                    .opacity(isProcessing ? 0.5 : 1.0)
+                                    .opacity(isProcessing ? 0.5 : continueButtonOpacity)
                                 }
                             }
                             .padding(.horizontal, 30)
@@ -167,6 +188,20 @@ struct RewardView: View {
         .toolbar(.hidden, for: .tabBar)
         .task {
             await processSessionReward()
+        }
+        .onChange(of: isProcessing) { _, newValue in
+            // Trigger content animations when processing completes and there's no error
+            if !newValue && !hasError && !animationsStarted {
+                animationsStarted = true
+                startContentAnimations()
+            }
+        }
+        .onChange(of: hasError) { _, newValue in
+            // Trigger content animations when error state changes (if no error and not processing)
+            if !newValue && !isProcessing && !animationsStarted {
+                animationsStarted = true
+                startContentAnimations()
+            }
         }
     }
     
@@ -242,6 +277,41 @@ struct RewardView: View {
         let minutes = sessionDuration / 60
         let seconds = sessionDuration % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    // MARK: - Animation Functions
+    
+    private func startContentAnimations() {
+        // Content animations start after camp has faded in
+        // 0.8s: "Focused for XX:XX" text fades in (0.4s, easeIn)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            withAnimation(.easeIn(duration: 0.4)) {
+                durationTextOpacity = 1.0
+            }
+        }
+        
+        // 1.0s: "+XXX XP" text fades in + pops (0.5s, spring)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                xpTextOpacity = 1.0
+                xpScale = 1.0
+            }
+        }
+        
+        // 1.3s: Breakdown box fades in + slides up (0.4s, easeOut)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+            withAnimation(.easeOut(duration: 0.4)) {
+                breakdownOpacity = 1.0
+                breakdownOffset = 0
+            }
+        }
+        
+        // 1.5s: Continue button fades in (0.3s, easeIn)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation(.easeIn(duration: 0.3)) {
+                continueButtonOpacity = 1.0
+            }
+        }
     }
 }
 

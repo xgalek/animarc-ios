@@ -25,6 +25,7 @@ struct PortalTransitionOverlay: View {
     @State private var textOpacity: Double = 0
     @State private var textGlow: CGFloat = 0
     @State private var showParticles: Bool = false
+    @State private var contentOpacity: Double = 1.0  // For fading out the entire phase 2 content
     
     var body: some View {
         ZStack {
@@ -39,22 +40,26 @@ struct PortalTransitionOverlay: View {
             // Phase 2: Transition screen with particles
             if currentPhase == .transition {
                 ZStack {
-                    // Full black background
+                    // Full black background (always visible)
                     Color.black
                         .ignoresSafeArea()
                     
-                    // Particle system
-                    if showParticles {
-                        PortalParticleView()
-                            .allowsHitTesting(false)
+                    // Content that fades out before navigation
+                    ZStack {
+                        // Particle system
+                        if showParticles {
+                            PortalParticleView()
+                                .allowsHitTesting(false)
+                        }
+                        
+                        // "Focus mode activated..." text
+                        Text("Focus mode activated...")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundColor(.white)
+                            .opacity(textOpacity)
+                            .shadow(color: Color(hex: "#7FFF00").opacity(textGlow), radius: 20, x: 0, y: 0)
                     }
-                    
-                    // "Focus mode activated..." text
-                    Text("Focus mode activated...")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(.white)
-                        .opacity(textOpacity)
-                        .shadow(color: Color(hex: "#7FFF00").opacity(textGlow), radius: 20, x: 0, y: 0)
+                    .opacity(contentOpacity)
                 }
             }
         }
@@ -75,7 +80,7 @@ struct PortalTransitionOverlay: View {
             darkOverlayOpacity = 1.0
         }
         
-        // Phase 2: Transition Screen (2.5 seconds) - starts at 2.0s
+        // Phase 2: Transition Screen - starts at 2.0s
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             currentPhase = .transition
             showParticles = true
@@ -91,10 +96,19 @@ struct PortalTransitionOverlay: View {
             }
         }
         
-        // Complete and trigger navigation (4.5 seconds total)
-        // Navigation happens while screen is fully black
-        // FocusSessionView will handle the fade-reveal (Phase 3)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
+        // Fade out content smoothly before navigation - starts at 4.0s
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            // Smoothly fade out text, particles, and all content
+            withAnimation(.easeOut(duration: 1.0)) {
+                contentOpacity = 0.0
+                textOpacity = 0.0
+            }
+        }
+        
+        // Complete and trigger navigation (5.5 seconds total)
+        // Screen is now pure black after content faded out
+        // FocusSessionView will handle the fade-reveal
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.5) {
             currentPhase = .complete
             onComplete()
         }
@@ -261,6 +275,44 @@ struct PortalParticleView: View {
             particle.position.x > -50 &&
             particle.position.x < size.width + 50 &&
             particle.opacity > 0.01
+        }
+    }
+}
+
+// MARK: - Exit Transition Overlay
+// This overlay appears ON TOP of FocusSessionView, fading the parallax world to black
+
+struct ExitTransitionOverlay: View {
+    let onComplete: () -> Void
+    
+    @State private var darkOverlayOpacity: Double = 0
+    
+    var body: some View {
+        ZStack {
+            // Fade parallax world to black
+            Color.black
+                .opacity(darkOverlayOpacity)
+                .ignoresSafeArea()
+        }
+        .allowsHitTesting(false) // Don't block touches during transition
+        .onAppear {
+            startTransitionSequence()
+        }
+    }
+    
+    private func startTransitionSequence() {
+        // Haptic feedback at start
+        let exitHaptic = UIImpactFeedbackGenerator(style: .medium)
+        exitHaptic.impactOccurred()
+        
+        // Fade to black (1 second, easeIn)
+        withAnimation(.easeIn(duration: 1.0)) {
+            darkOverlayOpacity = 1.0
+        }
+        
+        // Complete and trigger navigation (1 second total)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            onComplete()
         }
     }
 }
