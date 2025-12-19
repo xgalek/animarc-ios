@@ -480,19 +480,6 @@ struct LevelUpModalView: View {
                 Color.black.opacity(backgroundOpacity)
                     .ignoresSafeArea()
                 
-                // Confetti overlay
-                if showConfetti {
-                    ConfettiView(
-                        colors: [
-                            Color(hex: "#F173FF"),
-                            Color(hex: "#6FE4FF"),
-                            Color(hex: "#FFE66F")
-                        ],
-                        particleCount: 160
-                    )
-                    .allowsHitTesting(false)
-                }
-                
                 // Glassmorphic card container
                 VStack(spacing: 24) {
                     // Header
@@ -590,6 +577,20 @@ struct LevelUpModalView: View {
                 .shadow(color: goldColor.opacity(0.4 * borderOpacity), radius: 25, x: 0, y: 10)
                 .shadow(color: Color.black.opacity(0.3), radius: 30, x: 0, y: 15)
                 .padding(.horizontal, 20)
+                
+                // Burst confetti overlay - ON TOP of card
+                if showConfetti {
+                    BurstConfettiView(
+                        colors: [
+                            Color(hex: "#F173FF"),
+                            Color(hex: "#6FE4FF"),
+                            Color(hex: "#FFE66F"),
+                            goldColor
+                        ],
+                        particleCount: 80
+                    )
+                    .allowsHitTesting(false)
+                }
             }
         }
         .presentationDetents([.medium])
@@ -648,9 +649,9 @@ struct LevelUpModalView: View {
     }
 }
 
-// MARK: - Confetti System
+// MARK: - Burst Confetti System (Level Up - Explosive Outward Burst)
 
-struct ConfettiParticle: Identifiable {
+struct BurstParticle: Identifiable {
     let id = UUID()
     var position: CGPoint
     var velocity: CGVector
@@ -658,22 +659,18 @@ struct ConfettiParticle: Identifiable {
     var rotationSpeed: Double
     var opacity: Double = 1.0
     var color: Color
+    var size: CGFloat
+    var isRectangle: Bool
 }
 
-struct ConfettiView: View {
+struct BurstConfettiView: View {
     let colors: [Color]
     let particleCount: Int
-    @State private var particles: [ConfettiParticle] = []
+    @State private var particles: [BurstParticle] = []
     @State private var startTime: Date = Date()
     @State private var timer: Timer?
     
-    init(color: Color, particleCount: Int = 35) {
-        // Backward compatibility: single color
-        self.colors = [color]
-        self.particleCount = particleCount
-    }
-    
-    init(colors: [Color], particleCount: Int = 35) {
+    init(colors: [Color], particleCount: Int = 80) {
         self.colors = colors
         self.particleCount = particleCount
     }
@@ -682,12 +679,20 @@ struct ConfettiView: View {
         GeometryReader { geometry in
             ZStack {
                 ForEach(particles) { particle in
-                    Circle()
-                        .fill(particle.color)
-                        .frame(width: 6, height: 6)
-                        .position(particle.position)
-                        .opacity(particle.opacity)
-                        .rotationEffect(.degrees(particle.rotation))
+                    Group {
+                        if particle.isRectangle {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(particle.color)
+                                .frame(width: particle.size, height: particle.size * 0.4)
+                        } else {
+                            Circle()
+                                .fill(particle.color)
+                                .frame(width: particle.size, height: particle.size)
+                        }
+                    }
+                    .position(particle.position)
+                    .opacity(particle.opacity)
+                    .rotationEffect(.degrees(particle.rotation))
                 }
             }
             .onAppear {
@@ -702,28 +707,30 @@ struct ConfettiView: View {
     
     private func initializeParticles(in size: CGSize) {
         let centerX = size.width / 2
-        let startY = size.height * 0.3 // Start above item icon area
+        let centerY = size.height * 0.35 // Center of the level number area
         
         particles = (0..<particleCount).map { _ in
-            let angle = Double.random(in: -Double.pi...Double.pi)
-            let speed = Double.random(in: 30...80)
-            let horizontalVariance = Double.random(in: -50...50)
+            // Full 360 degree burst
+            let angle = Double.random(in: 0...(2 * Double.pi))
+            // Higher velocity for explosive feel
+            let speed = Double.random(in: 150...350)
             
-            // Randomly assign color from colors array
             let randomColor = colors.randomElement() ?? colors[0]
             
-            return ConfettiParticle(
+            return BurstParticle(
                 position: CGPoint(
-                    x: centerX + CGFloat.random(in: -40...40),
-                    y: startY + CGFloat.random(in: -20...20)
+                    x: centerX + CGFloat.random(in: -10...10),
+                    y: centerY + CGFloat.random(in: -10...10)
                 ),
                 velocity: CGVector(
-                    dx: cos(angle) * speed + horizontalVariance,
-                    dy: sin(angle) * speed + 100 // Downward bias
+                    dx: cos(angle) * speed,
+                    dy: sin(angle) * speed
                 ),
                 rotation: Double.random(in: 0...360),
-                rotationSpeed: Double.random(in: -180...180),
-                color: randomColor
+                rotationSpeed: Double.random(in: -360...360),
+                color: randomColor,
+                size: CGFloat.random(in: 8...14),
+                isRectangle: Bool.random()
             )
         }
     }
@@ -738,16 +745,19 @@ struct ConfettiView: View {
     private func updateParticles(in size: CGSize) {
         let elapsed = Date().timeIntervalSince(startTime)
         
-        // Stop updating after 0.8s
-        if elapsed > 0.8 {
+        // Longer duration: 1.8s
+        if elapsed > 1.8 {
             timer?.invalidate()
             return
         }
         
-        // Update each particle
         for i in particles.indices {
-            // Apply gravity
-            particles[i].velocity.dy += 200 * 0.016 // Gravity effect
+            // Apply gravity (pulls down)
+            particles[i].velocity.dy += 280 * 0.016
+            
+            // Apply air resistance (slows down over time)
+            particles[i].velocity.dx *= 0.99
+            particles[i].velocity.dy *= 0.99
             
             // Update position
             particles[i].position.x += particles[i].velocity.dx * 0.016
@@ -756,18 +766,148 @@ struct ConfettiView: View {
             // Update rotation
             particles[i].rotation += particles[i].rotationSpeed * 0.016
             
-            // Fade out after 0.6s
-            if elapsed > 0.6 {
-                let fadeProgress = min((elapsed - 0.6) / 0.2, 1.0)
+            // Fade out after 1.2s
+            if elapsed > 1.2 {
+                let fadeProgress = min((elapsed - 1.2) / 0.6, 1.0)
                 particles[i].opacity = 1.0 - fadeProgress
             }
         }
         
-        // Remove particles that are off-screen or fully faded
+        // Remove off-screen or faded particles
+        particles = particles.filter { particle in
+            particle.position.y < size.height + 100 &&
+            particle.position.y > -100 &&
+            particle.position.x > -100 &&
+            particle.position.x < size.width + 100 &&
+            particle.opacity > 0.01
+        }
+    }
+}
+
+// MARK: - Sparkle Rain System (Item Drop - Magical Falling Sparkles)
+
+struct SparkleParticle: Identifiable {
+    let id = UUID()
+    var position: CGPoint
+    var velocity: CGVector
+    var rotation: Double
+    var rotationSpeed: Double
+    var opacity: Double
+    var color: Color
+    var size: CGFloat
+    var twinklePhase: Double
+    var twinkleSpeed: Double
+}
+
+struct SparkleRainView: View {
+    let primaryColor: Color
+    let particleCount: Int
+    @State private var particles: [SparkleParticle] = []
+    @State private var startTime: Date = Date()
+    @State private var timer: Timer?
+    
+    init(primaryColor: Color, particleCount: Int = 50) {
+        self.primaryColor = primaryColor
+        self.particleCount = particleCount
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                ForEach(particles) { particle in
+                    // Diamond/star shape for magical feel
+                    Image(systemName: "sparkle")
+                        .font(.system(size: particle.size))
+                        .foregroundColor(particle.color)
+                        .position(particle.position)
+                        .opacity(particle.opacity * (0.6 + 0.4 * sin(particle.twinklePhase)))
+                        .rotationEffect(.degrees(particle.rotation))
+                }
+            }
+            .onAppear {
+                initializeParticles(in: geometry.size)
+                startTimer(in: geometry.size)
+            }
+            .onDisappear {
+                timer?.invalidate()
+            }
+        }
+    }
+    
+    private func initializeParticles(in size: CGSize) {
+        // Colors: primary color + white/silver accents
+        let sparkleColors: [Color] = [
+            primaryColor,
+            primaryColor.opacity(0.8),
+            .white,
+            Color(hex: "#E8E8E8"),
+            Color(hex: "#FFD700").opacity(0.6)
+        ]
+        
+        particles = (0..<particleCount).map { _ in
+            let randomColor = sparkleColors.randomElement() ?? primaryColor
+            
+            return SparkleParticle(
+                position: CGPoint(
+                    x: CGFloat.random(in: 20...(size.width - 20)),
+                    y: CGFloat.random(in: -50...(-10)) // Start above the view
+                ),
+                velocity: CGVector(
+                    dx: CGFloat.random(in: -20...20), // Slight horizontal drift
+                    dy: CGFloat.random(in: 40...80) // Gentle downward fall
+                ),
+                rotation: Double.random(in: 0...360),
+                rotationSpeed: Double.random(in: -60...60),
+                opacity: Double.random(in: 0.7...1.0),
+                color: randomColor,
+                size: CGFloat.random(in: 6...12),
+                twinklePhase: Double.random(in: 0...(2 * Double.pi)),
+                twinkleSpeed: Double.random(in: 4...8)
+            )
+        }
+    }
+    
+    private func startTimer(in size: CGSize) {
+        startTime = Date()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { _ in
+            updateParticles(in: size)
+        }
+    }
+    
+    private func updateParticles(in size: CGSize) {
+        let elapsed = Date().timeIntervalSince(startTime)
+        
+        // Longer duration: 2.5s for gentle effect
+        if elapsed > 2.5 {
+            timer?.invalidate()
+            return
+        }
+        
+        for i in particles.indices {
+            // Gentle swaying motion (sine wave)
+            let swayAmount = sin(elapsed * 2 + Double(i) * 0.5) * 15
+            particles[i].velocity.dx = CGFloat(swayAmount)
+            
+            // Update position
+            particles[i].position.x += particles[i].velocity.dx * 0.016
+            particles[i].position.y += particles[i].velocity.dy * 0.016
+            
+            // Update rotation (slow, gentle)
+            particles[i].rotation += particles[i].rotationSpeed * 0.016
+            
+            // Update twinkle phase
+            particles[i].twinklePhase += particles[i].twinkleSpeed * 0.016
+            
+            // Fade out after 1.8s
+            if elapsed > 1.8 {
+                let fadeProgress = min((elapsed - 1.8) / 0.7, 1.0)
+                particles[i].opacity = (1.0 - fadeProgress) * Double.random(in: 0.7...1.0)
+            }
+        }
+        
+        // Remove off-screen or faded particles
         particles = particles.filter { particle in
             particle.position.y < size.height + 50 &&
-            particle.position.x > -50 &&
-            particle.position.x < size.width + 50 &&
             particle.opacity > 0.01
         }
     }
@@ -793,12 +933,6 @@ struct ItemDropModalView: View {
                 // Background: Semi-transparent black overlay
                 Color.black.opacity(backgroundOpacity)
                     .ignoresSafeArea()
-                
-                // Confetti overlay
-                if showConfetti {
-                    ConfettiView(color: item.rankColor)
-                        .allowsHitTesting(false)
-                }
                 
                 // Glassmorphic card container
                 VStack(spacing: 16) {
@@ -906,6 +1040,15 @@ struct ItemDropModalView: View {
                 .shadow(color: item.rankColor.opacity(0.4 * borderOpacity), radius: 25, x: 0, y: 10)
                 .shadow(color: Color.black.opacity(0.3), radius: 30, x: 0, y: 15)
                 .padding(.horizontal, 20)
+                
+                // Sparkle rain overlay - ON TOP of card
+                if showConfetti {
+                    SparkleRainView(
+                        primaryColor: item.rankColor,
+                        particleCount: 50
+                    )
+                    .allowsHitTesting(false)
+                }
             }
         }
         .presentationDetents([.medium])
