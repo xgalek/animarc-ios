@@ -26,9 +26,9 @@ struct Opponent: Identifiable {
     let successRate: Int
     let focusPower: Int
     let exactGoldReward: Int // Exact gold amount that will be awarded (if win)
-    let avatarUrl: String
+    let imageName: String // Local asset name for opponent image
     
-    init(id: String, name: String, level: Int, rank: String, rankColor: Color, successRate: Int, focusPower: Int, exactGoldReward: Int, avatarUrl: String) {
+    init(id: String, name: String, level: Int, rank: String, rankColor: Color, successRate: Int, focusPower: Int, exactGoldReward: Int, imageName: String) {
         self.id = id
         self.name = name
         self.level = level
@@ -37,7 +37,7 @@ struct Opponent: Identifiable {
         self.successRate = successRate
         self.focusPower = focusPower
         self.exactGoldReward = exactGoldReward
-        self.avatarUrl = avatarUrl
+        self.imageName = imageName
     }
 }
 
@@ -50,7 +50,7 @@ struct FindOpponentView: View {
     @State private var contentAppeared = false
     @State private var battleResultData: BattleResultData? = nil
     
-    // Static list of 50 AI opponent names
+    // Static list of 45 AI opponent names (matching 45 available images)
     private static let opponentNames: [String] = [
         "ShadowHunter",
         "FocusMaster",
@@ -96,23 +96,19 @@ struct FindOpponentView: View {
         "DiamondMind",
         "RubyFocus",
         "SapphireWill",
-        "EmeraldFlow",
-        "OnyxWarrior",
-        "PearlWisdom",
-        "TopazHunter",
-        "AmethystDream",
-        "ObsidianGrit"
+        "EmeraldFlow"
     ]
     
-    // Default avatar URL for opponents (using a placeholder avatar service)
-    private static let defaultAvatarUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuA1TQgK-rvEfSKL7lv7jYaCrt_ncnOrmRSfI_Tz9fZhM9jpOsWPBiMUa8nrBR79av49E47Ni3hCALedDpN5s-w_BeDm27aLXQM7khxzwQEnL5GwInSrcN6-CMYeRgP0ZDBiSNRpLvywpGDUWgceakMCq4Fn80UTgqQEfvwDYQH0YHu3_7faBEoXDfBeE7ZAc-RlHJ2hSUt4d9TrzKtM5MdNQDszBoH8veiGW05B1HPei06USkeeaOFo905ZX52dlpnCMjOZfI2dKHh5"
-    
-    // Generate deterministic avatar URL based on opponent name
-    private func generateAvatarUrl(for name: String) -> String {
-        // Use a deterministic approach: hash the name to select from a pool of avatar URLs
-        // For now, we'll use the default avatar URL for all opponents
-        // In the future, this could be expanded to use different avatars based on name hash
-        return Self.defaultAvatarUrl
+    // Map opponent index to image asset name
+    // Returns the asset name for the opponent image based on sequential mapping
+    // Note: "Opponents/" prefix is required because the asset folder has namespace enabled
+    private static func getOpponentImageName(index: Int) -> String {
+        // Map each opponent index (0-44) to the corresponding image number
+        let imageNumbers = [2, 6, 9, 10, 16, 17, 19, 20, 23, 24, 25, 26, 28, 33, 35, 36, 40, 42, 46, 47, 55, 60, 64, 65, 71, 72, 73, 77, 81, 89, 102, 105, 187, 189, 190, 192, 194, 195, 214, 222, 223, 226, 229, 279, 280]
+        
+        // Ensure index is within bounds (use modulo for safety)
+        let safeIndex = index % imageNumbers.count
+        return "Opponents/_Stylized Cute Warrior Character (\(imageNumbers[safeIndex]))"
     }
     
     // Dynamically generated opponents based on player stats
@@ -137,6 +133,10 @@ struct FindOpponentView: View {
         let selectedNames = Array(Self.opponentNames.shuffled().prefix(3))
         
         return selectedNames.enumerated().map { index, name in
+            // Find the index of this name in the original array
+            let nameIndex = Self.opponentNames.firstIndex(of: name) ?? index
+            let imageName = Self.getOpponentImageName(index: nameIndex)
+            
             let level = [5, 3, 7][index]
             let rankInfo = RankService.getRankForLevel(level)
             let focusPower = [1251, 2423, 1850][index]
@@ -153,7 +153,7 @@ struct FindOpponentView: View {
                 successRate: [98, 55, 63][index],
                 focusPower: focusPower,
                 exactGoldReward: exactGold,
-                avatarUrl: generateAvatarUrl(for: name)
+                imageName: imageName
             )
         }
     }
@@ -177,6 +177,10 @@ struct FindOpponentView: View {
         let selectedNames = Array(shuffledNames.prefix(3))
         
         return selectedNames.enumerated().map { index, name in
+            // Find the index of this name in the original array
+            let nameIndex = Self.opponentNames.firstIndex(of: name) ?? index
+            let imageName = Self.getOpponentImageName(index: nameIndex)
+            
             // Generate deterministic random values based on opponent name
             let seed = generateSeed(from: name, userLevel: userLevel, userFocusPower: userFocusPower)
             var generator = SeededRandomNumberGenerator(seed: seed)
@@ -227,7 +231,7 @@ struct FindOpponentView: View {
                 successRate: successRate,
                 focusPower: opponentFocusPower,
                 exactGoldReward: exactGold,
-                avatarUrl: generateAvatarUrl(for: name)
+                imageName: imageName
             )
         }
     }
@@ -478,35 +482,24 @@ struct OpponentCard: View {
             VStack(spacing: 0) {
                 // Top section: Avatar, name, stats
                 HStack(alignment: .top, spacing: 16) {
-                    // Avatar
-                    AsyncImage(url: URL(string: opponent.avatarUrl)) { phase in
-                        switch phase {
-                        case .empty:
-                            Circle()
-                                .fill(Color(hex: "#374151"))
-                                .frame(width: 64, height: 64)
-                                .overlay(
-                                    ProgressView()
-                                        .tint(.white)
-                                )
-                        case .success(let image):
-                            image
+                    // Avatar - use UIImage for reliable asset loading
+                    Group {
+                        if let uiImage = UIImage(named: opponent.imageName) {
+                            Image(uiImage: uiImage)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
-                                .frame(width: 64, height: 64)
-                                .clipShape(Circle())
-                        case .failure:
+                        } else {
                             Circle()
                                 .fill(Color(hex: "#374151"))
-                                .frame(width: 64, height: 64)
                                 .overlay(
                                     Image(systemName: "person.fill")
                                         .foregroundColor(.white.opacity(0.5))
+                                        .font(.system(size: 24))
                                 )
-                        @unknown default:
-                            EmptyView()
                         }
                     }
+                    .frame(width: 64, height: 64)
+                    .clipShape(Circle())
                     .overlay(
                         Circle()
                             .stroke(opponent.rankColor.opacity(0.6), lineWidth: 2)
@@ -515,8 +508,10 @@ struct OpponentCard: View {
                     // Name and rank
                     VStack(alignment: .leading, spacing: 4) {
                         Text(opponent.name)
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 16, weight: .bold))
                             .foregroundColor(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                         
                         HStack(spacing: 8) {
                             Text("LV. \(opponent.level)")

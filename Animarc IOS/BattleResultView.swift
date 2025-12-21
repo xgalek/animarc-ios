@@ -182,7 +182,7 @@ struct BattleResultView: View {
             // Player (winner if victory)
             characterPortrait(
                 name: playerName,
-                avatarUrl: nil, // TODO: Add player avatar URL when available
+                imageName: "ProfileIcon/profile image", // Use the profile icon from Assets (with namespace)
                 isWinner: isVictory
             )
             
@@ -196,14 +196,14 @@ struct BattleResultView: View {
             // Opponent (winner if defeat)
             characterPortrait(
                 name: opponent.name,
-                avatarUrl: opponent.avatarUrl,
+                imageName: opponent.imageName,
                 isWinner: !isVictory
             )
         }
         .padding(.horizontal, 20)
     }
     
-    private func characterPortrait(name: String, avatarUrl: String?, isWinner: Bool) -> some View {
+    private func characterPortrait(name: String, imageName: String?, isWinner: Bool) -> some View {
         VStack(spacing: 12) {
             ZStack {
                 // Glow effect for winner
@@ -214,31 +214,12 @@ struct BattleResultView: View {
                         .blur(radius: 20)
                 }
                 
-                // Avatar
+                // Avatar - use UIImage for reliable asset loading
                 ZStack {
-                    if let url = avatarUrl, let imageUrl = URL(string: url) {
-                        AsyncImage(url: imageUrl) { phase in
-                            switch phase {
-                            case .empty:
-                                Circle()
-                                    .fill(Color(hex: "#374151"))
-                                    .overlay(ProgressView().tint(.white))
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            case .failure:
-                                Circle()
-                                    .fill(Color(hex: "#374151"))
-                                    .overlay(
-                                        Image(systemName: "person.fill")
-                                            .foregroundColor(.white.opacity(0.5))
-                                            .font(.system(size: 40))
-                                    )
-                            @unknown default:
-                                EmptyView()
-                            }
-                        }
+                    if let imageName = imageName, let uiImage = UIImage(named: imageName) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
                     } else {
                         Circle()
                             .fill(Color(hex: "#374151"))
@@ -473,7 +454,7 @@ struct BattleButtonStyle: ButtonStyle {
             successRate: 65,
             focusPower: 1500,
             exactGoldReward: 500,
-            avatarUrl: "https://example.com/avatar.jpg"
+            imageName: "Opponents/_Stylized Cute Warrior Character (2)"
         ),
         onBattleAgain: {},
         onReturnHome: {}

@@ -249,6 +249,10 @@ struct DisplayNameEntryView: View {
                     progressManager.userProgress = updatedProgress
                     isSaving = false
                     
+                    // Mark name entry modal as seen so it never shows again
+                    UserDefaults.standard.set(true, forKey: "hasSeenNameEntryModal")
+                    UserDefaults.standard.synchronize()
+                    
                     // Success haptic feedback
                     let generator = UINotificationFeedbackGenerator()
                     generator.notificationOccurred(.success)

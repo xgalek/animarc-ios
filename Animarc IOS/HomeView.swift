@@ -27,12 +27,14 @@ struct HomeView: View {
     @State private var contentAppeared = false
     @State private var pendingNavigation: String? = nil
     @State private var showNameEntryPopup = false
+    @State private var hasCheckedNameEntry = false
     
     // Portal transition binding - controlled by MainTabView
     @Binding var showPortalTransition: Bool
     let onPortalTransitionComplete: (@escaping () -> Void) -> Void
     
     private let streakCelebrationKey = "lastStreakCelebrationShownDate"
+    private let hasSeenNameEntryKey = "hasSeenNameEntryModal"
     
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -248,13 +250,8 @@ struct HomeView: View {
                 // Load current quote
                 currentQuote = quoteManager.getCurrentQuote()
                 
-                // Check if user needs to set display name (first time)
-                if progressManager.userProgress?.displayName == nil || progressManager.userProgress?.displayName?.isEmpty == true {
-                    // Small delay to ensure view is fully loaded
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        showNameEntryPopup = true
-                    }
-                }
+                // Reset check flag so we can check again if needed
+                hasCheckedNameEntry = false
                 
                 // Trigger smooth fade-in animation for all elements
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -268,6 +265,22 @@ struct HomeView: View {
                 // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
                 // Refresh authorization status
                 // appBlockingManager.refreshAuthorizationStatus()
+            }
+            .onChange(of: progressManager.userProgress) { _, newProgress in
+                // Check name entry modal when progress loads or updates
+                checkNameEntryModal()
+            }
+            .task {
+                // Wait for progress to load, then check
+                if progressManager.isLoading {
+                    // Wait for loading to complete
+                    while progressManager.isLoading {
+                        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
+                    }
+                }
+                // Check after a small delay to ensure progress is set
+                try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
+                checkNameEntryModal()
             }
             // TEMPORARILY DISABLED: Permission modal and alert commented out pending Apple's approval
             /*
@@ -352,6 +365,45 @@ struct HomeView: View {
     }
     
     // MARK: - Helper Methods
+    
+    private func checkNameEntryModal() {
+        // Only check once per view lifecycle
+        guard !hasCheckedNameEntry else { return }
+        
+        // Wait for progress to be loaded (not nil and not loading)
+        guard !progressManager.isLoading, progressManager.userProgress != nil else {
+            return // Will check again when progress loads
+        }
+        
+        hasCheckedNameEntry = true
+        
+        // PRIMARY CHECK: If user has already seen the modal, NEVER show it again
+        let hasSeenNameEntry = UserDefaults.standard.bool(forKey: hasSeenNameEntryKey)
+        if hasSeenNameEntry {
+            return // User has seen it before, don't show again
+        }
+        
+        // SECONDARY CHECK: If user already has a name, mark modal as seen and don't show
+        let displayName = progressManager.userProgress?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayNameIsEmpty = displayName == nil || displayName?.isEmpty == true
+        
+        if !displayNameIsEmpty {
+            // User has a name but flag wasn't set - set it now
+            UserDefaults.standard.set(true, forKey: hasSeenNameEntryKey)
+            UserDefaults.standard.synchronize()
+            return // Don't show modal if name exists
+        }
+        
+        // FINAL CASE: User hasn't seen modal AND name is empty - show it ONCE
+        // Mark as seen IMMEDIATELY to prevent showing again
+        UserDefaults.standard.set(true, forKey: hasSeenNameEntryKey)
+        UserDefaults.standard.synchronize() // Force immediate save
+        
+        // Small delay to ensure view is fully loaded
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            showNameEntryPopup = true
+        }
+    }
     
     private func handleFocusButtonTap() {
         // TEMPORARILY DISABLED: Simplified to directly show focus config modal
