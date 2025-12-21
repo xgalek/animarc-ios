@@ -51,7 +51,6 @@ struct FindOpponentView: View {
     @State private var battleResultData: BattleResultData? = nil
     @State private var showBattleAnimation = false
     @State private var pendingBattleData: (opponent: Opponent, userFP: Int)? = nil
-    @State private var cachedOpponents: [Opponent] = []
     
     // Static list of 45 AI opponent names (matching 45 available images)
     private static let opponentNames: [String] = [
@@ -115,9 +114,19 @@ struct FindOpponentView: View {
     }
     
     // Dynamically generated opponents based on player stats
-    // Use cached opponents to prevent recalculation during render
     private var opponents: [Opponent] {
-        return cachedOpponents
+        // Calculate user's stats for opponent generation
+        guard let progress = progressManager.userProgress else {
+            return generateDefaultOpponents()
+        }
+        
+        let userLevel = progressManager.currentLevel
+        let userFP = calculateUserFocusPower()
+        
+        return generateDynamicOpponents(
+            userLevel: userLevel,
+            userFocusPower: userFP
+        )
     }
     
     /// Generate default opponents when user progress is not available
@@ -402,15 +411,14 @@ struct FindOpponentView: View {
             .environmentObject(progressManager)
         }
         .onAppear {
-            // Initialize opponents immediately to prevent recalculation glitches
-            initializeOpponents()
+            // Trigger entrance animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                contentAppeared = true
+            }
             
-            // Trigger entrance animation after a brief delay to ensure content is ready
-            // This delay allows images and layout to stabilize before animating
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                withAnimation {
-                    contentAppeared = true
-                }
+            // Pre-select the middle opponent (matching HTML design)
+            if opponents.count >= 2 {
+                selectedOpponent = opponents[1]
             }
         }
     }
@@ -420,32 +428,6 @@ struct FindOpponentView: View {
         // For now, use empty equipped items array
         // In the future, pass inventory from CharacterView
         return UserProgress.calculateFocusPower(progress: progress, equippedItems: [])
-    }
-    
-    /// Initialize opponents array once to prevent recalculation glitches
-    private func initializeOpponents() {
-        // Calculate user's stats for opponent generation
-        guard let progress = progressManager.userProgress else {
-            cachedOpponents = generateDefaultOpponents()
-            // Pre-select the middle opponent (matching HTML design)
-            if cachedOpponents.count >= 2 {
-                selectedOpponent = cachedOpponents[1]
-            }
-            return
-        }
-        
-        let userLevel = progressManager.currentLevel
-        let userFP = calculateUserFocusPower()
-        
-        cachedOpponents = generateDynamicOpponents(
-            userLevel: userLevel,
-            userFocusPower: userFP
-        )
-        
-        // Pre-select the middle opponent (matching HTML design)
-        if cachedOpponents.count >= 2 {
-            selectedOpponent = cachedOpponents[1]
-        }
     }
     
     private func startBattle() {
@@ -530,14 +512,13 @@ struct OpponentCard: View {
             VStack(spacing: 0) {
                 // Top section: Avatar, name, stats
                 HStack(alignment: .top, spacing: 16) {
-                    // Avatar - use UIImage for reliable asset loading with placeholder
+                    // Avatar - use UIImage for reliable asset loading
                     Group {
                         if let uiImage = UIImage(named: opponent.imageName) {
                             Image(uiImage: uiImage)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         } else {
-                            // Placeholder that matches final size to prevent layout shift
                             Circle()
                                 .fill(Color(hex: "#374151"))
                                 .overlay(
@@ -553,7 +534,6 @@ struct OpponentCard: View {
                         Circle()
                             .stroke(opponent.rankColor.opacity(0.6), lineWidth: 2)
                     )
-                    .drawingGroup() // Cache rendering to prevent glitches
                     
                     // Name and rank
                     VStack(alignment: .leading, spacing: 4) {
