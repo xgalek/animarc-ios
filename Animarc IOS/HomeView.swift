@@ -222,7 +222,7 @@ struct HomeView: View {
                     .padding(.bottom, 50)
                     .opacity(contentAppeared ? 1 : 0)
                     .offset(y: contentAppeared ? 0 : 30)
-                    .animation(.spring(response: 1.2, dampingFraction: 0.8), value: contentAppeared)
+                    .animation(.easeOut(duration: 0.6), value: contentAppeared)
                     // TEMPORARILY DISABLED: .disabled(isRequestingPermission)
                 }
                 .padding(.top, 100)
