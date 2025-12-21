@@ -28,7 +28,7 @@ final class RankService {
     
     /// All ranks in ascending order
     static let allRanks: [RankInfo] = [
-        RankInfo(code: "E", title: "Beginner Scholar", minLevel: 1, color: "#888888"),
+        RankInfo(code: "E", title: "Beginner Scholar", minLevel: 1, color: "#4A90A4"),
         RankInfo(code: "D", title: "Rising Student", minLevel: 10, color: "#CD7F32"),
         RankInfo(code: "C", title: "Focused Apprentice", minLevel: 25, color: "#4CAF50"),
         RankInfo(code: "B", title: "Dedicated Learner", minLevel: 45, color: "#2196F3"),

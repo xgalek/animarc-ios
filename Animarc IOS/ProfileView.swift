@@ -23,6 +23,11 @@ struct ProfileView: View {
     @State private var isSigningOut = false
     @State private var isLoadingStats = false
     @AppStorage("KeepScreenOnDuringFocus") private var keepScreenOn: Bool = true
+    @State private var isEditingDisplayName = false
+    @State private var editedDisplayName = ""
+    @State private var isSavingDisplayName = false
+    @State private var showDisplayNameError = false
+    @State private var displayNameErrorMessage = ""
     
     var body: some View {
         ZStack {
@@ -69,10 +74,93 @@ struct ProfileView: View {
                     
                     // Bottom Section - Settings
                     VStack(alignment: .leading, spacing: 20) {
+                        // Profile Section
+                        Text("Profile")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                        
+                        VStack(spacing: 0) {
+                            // Display Name Row
+                            HStack {
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(Color(hex: "#9CA3AF"))
+                                    .frame(width: 24)
+                                
+                                if isEditingDisplayName {
+                                    TextField("Enter your name", text: $editedDisplayName)
+                                        .font(.body)
+                                        .foregroundColor(.white)
+                                        .textInputAutocapitalization(.words)
+                                        .autocorrectionDisabled()
+                                        .onAppear {
+                                            editedDisplayName = progressManager.userProgress?.displayName ?? ""
+                                        }
+                                } else {
+                                    Text(progressManager.userProgress?.displayName ?? "Not set")
+                                        .font(.body)
+                                        .foregroundColor(progressManager.userProgress?.displayName != nil ? .white : Color(hex: "#9CA3AF"))
+                                }
+                                
+                                Spacer()
+                                
+                                if isEditingDisplayName {
+                                    // Save button
+                                    Button(action: {
+                                        Task {
+                                            await saveDisplayName()
+                                        }
+                                    }) {
+                                        if isSavingDisplayName {
+                                            ProgressView()
+                                                .tint(.white)
+                                                .scaleEffect(0.8)
+                                        } else {
+                                            Text("Save")
+                                                .font(.subheadline)
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color(hex: "#6B46C1"))
+                                                .cornerRadius(8)
+                                        }
+                                    }
+                                    .disabled(isSavingDisplayName || editedDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                    
+                                    // Cancel button
+                                    Button(action: {
+                                        isEditingDisplayName = false
+                                        editedDisplayName = ""
+                                    }) {
+                                        Text("Cancel")
+                                            .font(.subheadline)
+                                            .foregroundColor(Color(hex: "#9CA3AF"))
+                                    }
+                                } else {
+                                    // Edit button
+                                    Button(action: {
+                                        isEditingDisplayName = true
+                                        editedDisplayName = progressManager.userProgress?.displayName ?? ""
+                                    }) {
+                                        Image(systemName: "pencil")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(Color(hex: "#6B46C1"))
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                        }
+                        .background(Color(hex: "#374151"))
+                        .cornerRadius(15)
+                        .padding(.horizontal, 20)
+                        
                         Text("Settings")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 20)
+                            .padding(.top, 8)
                         
                         VStack(spacing: 0) {
                             // Notifications Toggle
@@ -394,6 +482,13 @@ struct ProfileView: View {
         } message: {
             Text(signOutErrorMessage)
         }
+        .alert("Display Name Error", isPresented: $showDisplayNameError) {
+            Button("OK", role: .cancel) {
+                showDisplayNameError = false
+            }
+        } message: {
+            Text(displayNameErrorMessage)
+        }
     }
     
     // MARK: - Helper Methods
@@ -414,6 +509,58 @@ struct ProfileView: View {
                 showSignOutError = true
             }
             print("ProfileView: Sign out error: \(error)")
+        }
+    }
+    
+    private func saveDisplayName() async {
+        guard let userId = try? await SupabaseManager.shared.client.auth.session.user.id else {
+            await MainActor.run {
+                displayNameErrorMessage = "Not authenticated. Please sign in again."
+                showDisplayNameError = true
+                isEditingDisplayName = false
+                isSavingDisplayName = false
+            }
+            return
+        }
+        
+        let trimmedName = editedDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !trimmedName.isEmpty else {
+            await MainActor.run {
+                displayNameErrorMessage = "Display name cannot be empty."
+                showDisplayNameError = true
+                isSavingDisplayName = false
+            }
+            return
+        }
+        
+        await MainActor.run {
+            isSavingDisplayName = true
+        }
+        
+        do {
+            let updatedProgress = try await SupabaseManager.shared.updateDisplayName(
+                userId: userId,
+                newName: trimmedName
+            )
+            
+            await MainActor.run {
+                progressManager.userProgress = updatedProgress
+                isEditingDisplayName = false
+                isSavingDisplayName = false
+                editedDisplayName = ""
+                
+                // Haptic feedback for success
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+            }
+        } catch {
+            await MainActor.run {
+                isSavingDisplayName = false
+                displayNameErrorMessage = "Failed to save display name: \(error.localizedDescription). Please try again."
+                showDisplayNameError = true
+            }
+            print("ProfileView: Display name update error: \(error)")
         }
     }
 }

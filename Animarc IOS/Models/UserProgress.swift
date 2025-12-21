@@ -28,6 +28,9 @@ struct UserProgress: Codable, Identifiable, Equatable {
     var statINT: Int
     var statVIT: Int
     
+    // Currency
+    var gold: Int
+    
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"
@@ -45,6 +48,7 @@ struct UserProgress: Codable, Identifiable, Equatable {
         case statAGI = "stat_agi"
         case statINT = "stat_int"
         case statVIT = "stat_vit"
+        case gold
     }
 }
 
@@ -69,13 +73,33 @@ extension UserProgress {
             statSTR: 10,
             statAGI: 10,
             statINT: 10,
-            statVIT: 10
+            statVIT: 10,
+            gold: 0
         )
     }
     
     /// Calculate HP based on STR: HP = 150 + (STR * 5)
     var calculatedHP: Int {
         return 150 + (statSTR * 5)
+    }
+    
+    /// Calculate total base stats for Focus Power formula
+    var totalBaseStats: Int {
+        return statSTR + statAGI + statINT + statVIT
+    }
+    
+    /// Calculate total Focus Power
+    /// - Parameters:
+    ///   - progress: User's progress data (stats + focus minutes)
+    ///   - equippedItems: Array of currently equipped PortalItems
+    /// - Returns: Total Focus Power value
+    static func calculateFocusPower(progress: UserProgress, equippedItems: [PortalItem]) -> Int {
+        let basePower = 1000
+        let totalStats = progress.totalBaseStats
+        let focusMinutes = progress.totalFocusMinutes
+        let equipmentBonus = equippedItems.reduce(0) { $0 + $1.statValue }
+        
+        return basePower + totalStats + focusMinutes + equipmentBonus
     }
 }
 

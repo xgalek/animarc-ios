@@ -26,6 +26,7 @@ struct HomeView: View {
     @State private var currentQuote = ""
     @State private var contentAppeared = false
     @State private var pendingNavigation: String? = nil
+    @State private var showNameEntryPopup = false
     
     // Portal transition binding - controlled by MainTabView
     @Binding var showPortalTransition: Bool
@@ -247,6 +248,14 @@ struct HomeView: View {
                 // Load current quote
                 currentQuote = quoteManager.getCurrentQuote()
                 
+                // Check if user needs to set display name (first time)
+                if progressManager.userProgress?.displayName == nil || progressManager.userProgress?.displayName?.isEmpty == true {
+                    // Small delay to ensure view is fully loaded
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        showNameEntryPopup = true
+                    }
+                }
+                
                 // Trigger smooth fade-in animation for all elements
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     contentAppeared = true
@@ -326,6 +335,18 @@ struct HomeView: View {
                     pendingNavigation: $pendingNavigation,
                     onPortalTransitionComplete: onPortalTransitionComplete
                 )
+            }
+            .fullScreenCover(isPresented: $showNameEntryPopup) {
+                DisplayNameEntryView(
+                    onDismiss: {
+                        showNameEntryPopup = false
+                    },
+                    onSave: {
+                        showNameEntryPopup = false
+                    }
+                )
+                .environmentObject(progressManager)
+                .presentationBackground(.clear)
             }
         }
     }

@@ -47,6 +47,7 @@ extension SupabaseManager {
             let stat_agi: Int
             let stat_int: Int
             let stat_vit: Int
+            let gold: Int
         }
         
         let newProgress = NewUserProgress(
@@ -61,7 +62,8 @@ extension SupabaseManager {
             stat_str: 10,
             stat_agi: 10,
             stat_int: 10,
-            stat_vit: 10
+            stat_vit: 10,
+            gold: 0
         )
         
         let response: [UserProgress] = try await client
@@ -204,6 +206,99 @@ extension SupabaseManager {
         }
         
         return updated
+    }
+    
+    /// Update gold and XP after a battle
+    /// - Parameters:
+    ///   - userId: The user's UUID
+    ///   - goldToAdd: Amount of gold to add (can be 0 for losses)
+    ///   - xpToAdd: Amount of XP to add (50 for win, 10 for loss)
+    /// - Returns: Updated UserProgress
+    func updateGoldAndXP(userId: UUID, goldToAdd: Int, xpToAdd: Int) async throws -> UserProgress {
+        return try await withRetry {
+            // Fetch current progress
+            guard let current = try await self.fetchUserProgress(userId: userId) else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            // Calculate new values
+            let newTotalXP = Int64(current.totalXPEarned) + Int64(xpToAdd)
+            let newLevel = LevelService.getLevelFromXP(Int(newTotalXP))
+            let newRank = RankService.getRankForLevel(newLevel).code
+            
+            // Calculate XP within current level for display
+            let levelProgress = LevelService.getLevelProgress(totalXP: Int(newTotalXP))
+            let newCurrentXP = max(0, levelProgress.xpInCurrentLevel)
+            
+            // Calculate stat points to award based on levels gained
+            let levelsGained = newLevel - current.currentLevel
+            let statPointsToAdd = levelsGained * 5
+            let newAvailableStatPoints = current.availableStatPoints + statPointsToAdd
+            
+            // Calculate new gold balance
+            let newGold = current.gold + goldToAdd
+            
+            struct BattleUpdateData: Codable {
+                let current_xp: Int
+                let total_xp_earned: Int64
+                let current_level: Int
+                let current_rank: String
+                let available_stat_points: Int
+                let gold: Int
+            }
+            
+            let updateData = BattleUpdateData(
+                current_xp: newCurrentXP,
+                total_xp_earned: newTotalXP,
+                current_level: newLevel,
+                current_rank: newRank,
+                available_stat_points: newAvailableStatPoints,
+                gold: newGold
+            )
+            
+            let response: [UserProgress] = try await self.client
+                .from("user_progress")
+                .update(updateData)
+                .eq("user_id", value: userId.uuidString)
+                .select()
+                .execute()
+                .value
+            
+            guard let updated = response.first else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            return updated
+        }
+    }
+    
+    /// Update user's display name
+    /// - Parameters:
+    ///   - userId: The user's UUID
+    ///   - newName: The new display name to set
+    /// - Returns: Updated UserProgress
+    func updateDisplayName(userId: UUID, newName: String) async throws -> UserProgress {
+        return try await withRetry {
+            struct DisplayNameUpdate: Codable {
+                let display_name: String
+            }
+            
+            let updateData = DisplayNameUpdate(display_name: newName)
+            
+            let response: [UserProgress] = try await self.client
+                .from("user_progress")
+                .update(updateData)
+                .eq("user_id", value: userId.uuidString)
+                .select()
+                .execute()
+                .value
+            
+            guard let updated = response.first else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            return updated
+        }
     }
 }
 

@@ -10,6 +10,7 @@ import SwiftUI
 struct CharacterView: View {
     @EnvironmentObject var progressManager: UserProgressManager
     @State private var showChallengeAlert = false
+    @State private var showFindOpponent = false
     @State private var selectedPortalItem: PortalItem?
     @State private var showStatAllocation = false
     
@@ -51,6 +52,13 @@ struct CharacterView: View {
         }
         
         return bonuses
+    }
+    
+    /// Calculate Focus Power using formula: 1000 + (STR+AGI+INT+VIT) + totalFocusMinutes + equipmentBonuses
+    private var focusPower: Int {
+        let equippedItems = (inventory?.items ?? []).filter { $0.equipped }
+        guard let progress = progressManager.userProgress else { return 1000 }
+        return UserProgress.calculateFocusPower(progress: progress, equippedItems: equippedItems)
     }
     
     // MARK: - View Components
@@ -177,6 +185,54 @@ struct CharacterView: View {
                     )
             }
         }
+    }
+    
+    private var focusPowerGoldCardSection: some View {
+        HStack(spacing: 12) {
+            // Focus Power
+            HStack(spacing: 12) {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(Color(hex: "#F59E0B"))
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("FOCUS POWER")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(Color(hex: "#9CA3AF"))
+                        .tracking(1)
+                    
+                    Text("\(focusPower)")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+            
+            Spacer()
+            
+            // Gold Display
+            HStack(spacing: 8) {
+                Image(systemName: "dollarsign.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(Color(hex: "#FACC15"))
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("GOLD")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(Color(hex: "#9CA3AF"))
+                        .tracking(1)
+                    
+                    Text("\(progressManager.userProgress?.gold ?? 0)")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(Color(hex: "#F59E0B"))
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(Color(hex: "#2D3748"))
+        .cornerRadius(20)
+        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+        .padding(.horizontal, 20)
     }
     
     private var statsCardSection: some View {
@@ -381,7 +437,7 @@ struct CharacterView: View {
     
     private var challengeButton: some View {
         Button(action: {
-            showChallengeAlert = true
+            showFindOpponent = true
         }) {
             Text("⚔️ FIND OPPONENT")
                 .font(.headline)
@@ -416,13 +472,11 @@ struct CharacterView: View {
                 ScrollView {
                     VStack(spacing: 24) {
                         profileCardSection
+                        focusPowerGoldCardSection
                         statsCardSection
                         challengeButton
                     }
                 }
-            }
-            .alert("Coming Soon!", isPresented: $showChallengeAlert) {
-                Button("OK", role: .cancel) { }
             }
             .alert("Inventory Full", isPresented: $showSlotFullAlert) {
                 Button("OK", role: .cancel) { }
@@ -469,6 +523,11 @@ struct CharacterView: View {
                 )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showFindOpponent) {
+                FindOpponentView()
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
         }
     }
