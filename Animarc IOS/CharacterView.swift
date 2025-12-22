@@ -17,10 +17,10 @@ struct CharacterView: View {
     // Stat allocation system
     @State private var availablePoints: Int = 0
     @State private var tempStats: [String: Int] = [
-        "STR": 10,
-        "AGI": 10,
-        "INT": 10,
-        "VIT": 10
+        "Health": 150,
+        "Attack": 10,
+        "Defense": 10,
+        "Speed": 10
     ]
     @State private var workingStats: [String: Int] = [:]
     @State private var originalStats: [String: Int] = [:]
@@ -43,7 +43,7 @@ struct CharacterView: View {
         guard let inventory = inventory else { return [:] }
         let equippedItems = inventory.items.filter { $0.equipped }
         
-        var bonuses: [String: Int] = ["STR": 0, "AGI": 0, "INT": 0, "VIT": 0]
+        var bonuses: [String: Int] = ["Health": 0, "Attack": 0, "Defense": 0, "Speed": 0]
         
         for item in equippedItems {
             if let currentBonus = bonuses[item.statType] {
@@ -54,7 +54,7 @@ struct CharacterView: View {
         return bonuses
     }
     
-    /// Calculate Focus Power using formula: 1000 + (STR+AGI+INT+VIT) + totalFocusMinutes + equipmentBonuses
+    /// Calculate Focus Power using formula: 1000 + (Health+Attack+Defense+Speed) + totalFocusMinutes + equipmentBonuses
     private var focusPower: Int {
         let equippedItems = (inventory?.items ?? []).filter { $0.equipped }
         guard let progress = progressManager.userProgress else { return 1000 }
@@ -265,28 +265,21 @@ struct CharacterView: View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
             
-            // Stats Grid (2 columns: Left: HP, AGI, VIT | Right: STR, INT)
+            // Stats Grid (2 columns: Left: Attack, Defense | Right: Health, Speed)
             HStack(alignment: .top, spacing: 20) {
                 // Left Column
                 VStack(alignment: .leading, spacing: 12) {
                     statRow(
-                        label: "HP",
-                        baseValue: 150 + ((tempStats["STR"] ?? 10) * 5) + ((itemBonuses["STR"] ?? 0) * 5),
-                        bonus: 0,
-                        labelColor: Color(hex: "#FF8080")
+                        label: "Attack",
+                        baseValue: tempStats["Attack"] ?? 10,
+                        bonus: itemBonuses["Attack"] ?? 0,
+                        labelColor: Color(hex: "#80D8FF")
                     )
                     
                     statRow(
-                        label: "AGI",
-                        baseValue: tempStats["AGI"] ?? 10,
-                        bonus: itemBonuses["AGI"] ?? 0,
-                        labelColor: Color(hex: "#7CFF7C")
-                    )
-                    
-                    statRow(
-                        label: "VIT",
-                        baseValue: tempStats["VIT"] ?? 10,
-                        bonus: itemBonuses["VIT"] ?? 0,
+                        label: "Defense",
+                        baseValue: tempStats["Defense"] ?? 10,
+                        bonus: itemBonuses["Defense"] ?? 0,
                         labelColor: Color(hex: "#C080FF")
                     )
                 }
@@ -294,17 +287,17 @@ struct CharacterView: View {
                 // Right Column
                 VStack(alignment: .leading, spacing: 12) {
                     statRow(
-                        label: "STR",
-                        baseValue: tempStats["STR"] ?? 10,
-                        bonus: itemBonuses["STR"] ?? 0,
-                        labelColor: Color(hex: "#FFD580")
+                        label: "Health",
+                        baseValue: tempStats["Health"] ?? 150,
+                        bonus: itemBonuses["Health"] ?? 0,
+                        labelColor: Color(hex: "#FF8080")
                     )
                     
                     statRow(
-                        label: "INT",
-                        baseValue: tempStats["INT"] ?? 10,
-                        bonus: itemBonuses["INT"] ?? 0,
-                        labelColor: Color(hex: "#80D8FF")
+                        label: "Speed",
+                        baseValue: tempStats["Speed"] ?? 10,
+                        bonus: itemBonuses["Speed"] ?? 0,
+                        labelColor: Color(hex: "#7CFF7C")
                     )
                 }
             }
@@ -623,20 +616,20 @@ struct CharacterView: View {
         guard let progress = progressManager.userProgress else {
             // Use defaults if no progress loaded
             tempStats = [
-                "STR": 10,
-                "AGI": 10,
-                "INT": 10,
-                "VIT": 10
+                "Health": 150,
+                "Attack": 10,
+                "Defense": 10,
+                "Speed": 10
             ]
             availablePoints = 0
             return
         }
         
         tempStats = [
-            "STR": progress.statSTR,
-            "AGI": progress.statAGI,
-            "INT": progress.statINT,
-            "VIT": progress.statVIT
+            "Health": progress.statHealth,
+            "Attack": progress.statAttack,
+            "Defense": progress.statDefense,
+            "Speed": progress.statSpeed
         ]
         availablePoints = progress.availableStatPoints
     }
@@ -648,29 +641,32 @@ struct CharacterView: View {
             return
         }
         
-        guard let originalSTR = originalStats["STR"],
-              let originalAGI = originalStats["AGI"],
-              let originalINT = originalStats["INT"],
-              let originalVIT = originalStats["VIT"] else {
+        guard let originalHealth = originalStats["Health"],
+              let originalAttack = originalStats["Attack"],
+              let originalDefense = originalStats["Defense"],
+              let originalSpeed = originalStats["Speed"] else {
             print("CharacterView: Missing original stats")
             return
         }
         
-        let newSTR = savedStats["STR"] ?? originalSTR
-        let newAGI = savedStats["AGI"] ?? originalAGI
-        let newINT = savedStats["INT"] ?? originalINT
-        let newVIT = savedStats["VIT"] ?? originalVIT
+        let newHealth = savedStats["Health"] ?? originalHealth
+        let newAttack = savedStats["Attack"] ?? originalAttack
+        let newDefense = savedStats["Defense"] ?? originalDefense
+        let newSpeed = savedStats["Speed"] ?? originalSpeed
         
         // Calculate points spent
-        let pointsSpent = (newSTR - originalSTR) + (newAGI - originalAGI) + (newINT - originalINT) + (newVIT - originalVIT)
+        // Health increases by 5 per point, other stats by 1 per point
+        let healthPointsSpent = (newHealth - originalHealth) / 5
+        let otherPointsSpent = (newAttack - originalAttack) + (newDefense - originalDefense) + (newSpeed - originalSpeed)
+        let pointsSpent = healthPointsSpent + otherPointsSpent
         
         do {
             let updatedProgress = try await SupabaseManager.shared.updateStatAllocation(
                 userId: userId,
-                statSTR: newSTR,
-                statAGI: newAGI,
-                statINT: newINT,
-                statVIT: newVIT,
+                statHealth: newHealth,
+                statAttack: newAttack,
+                statDefense: newDefense,
+                statSpeed: newSpeed,
                 pointsSpent: pointsSpent
             )
             
@@ -733,65 +729,57 @@ struct StatAllocationSheet: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 20)
                 
-                // HP Display (read-only, calculated from STR)
-                VStack(spacing: 4) {
-                    Text("❤️ HP: \(150 + ((workingStats["STR"] ?? (originalStats["STR"] ?? 10)) * 5))")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("HP = 150 + (STR × 5)")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hex: "#9CA3AF"))
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 8)
-                
                 Divider()
                     .background(Color(hex: "#9CA3AF").opacity(0.3))
                 
-                // Stats with controls (STR, AGI, INT, VIT only - HP is derived)
+                // Stats with controls (Health, Attack, Defense, Speed)
                 VStack(spacing: 16) {
                     StatRowWithControls(
+                        icon: "❤️",
+                        label: "Health",
+                        value: Binding(
+                            get: { workingStats["Health"] ?? (originalStats["Health"] ?? 150) },
+                            set: { workingStats["Health"] = $0 }
+                        ),
+                        originalValue: originalStats["Health"] ?? 150,
+                        availablePoints: $tempAvailablePoints,
+                        step: 5
+                    )
+                    
+                    StatRowWithControls(
                         icon: "⚔️",
-                        label: "STR",
+                        label: "Attack",
                         value: Binding(
-                            get: { workingStats["STR"] ?? (originalStats["STR"] ?? 10) },
-                            set: { workingStats["STR"] = $0 }
+                            get: { workingStats["Attack"] ?? (originalStats["Attack"] ?? 10) },
+                            set: { workingStats["Attack"] = $0 }
                         ),
-                        originalValue: originalStats["STR"] ?? 10,
-                        availablePoints: $tempAvailablePoints
-                    )
-                    
-                    StatRowWithControls(
-                        icon: "⚡",
-                        label: "AGI",
-                        value: Binding(
-                            get: { workingStats["AGI"] ?? (originalStats["AGI"] ?? 10) },
-                            set: { workingStats["AGI"] = $0 }
-                        ),
-                        originalValue: originalStats["AGI"] ?? 10,
-                        availablePoints: $tempAvailablePoints
-                    )
-                    
-                    StatRowWithControls(
-                        icon: "🧠",
-                        label: "INT",
-                        value: Binding(
-                            get: { workingStats["INT"] ?? (originalStats["INT"] ?? 10) },
-                            set: { workingStats["INT"] = $0 }
-                        ),
-                        originalValue: originalStats["INT"] ?? 10,
-                        availablePoints: $tempAvailablePoints
+                        originalValue: originalStats["Attack"] ?? 10,
+                        availablePoints: $tempAvailablePoints,
+                        step: 1
                     )
                     
                     StatRowWithControls(
                         icon: "🛡️",
-                        label: "VIT",
+                        label: "Defense",
                         value: Binding(
-                            get: { workingStats["VIT"] ?? (originalStats["VIT"] ?? 10) },
-                            set: { workingStats["VIT"] = $0 }
+                            get: { workingStats["Defense"] ?? (originalStats["Defense"] ?? 10) },
+                            set: { workingStats["Defense"] = $0 }
                         ),
-                        originalValue: originalStats["VIT"] ?? 10,
-                        availablePoints: $tempAvailablePoints
+                        originalValue: originalStats["Defense"] ?? 10,
+                        availablePoints: $tempAvailablePoints,
+                        step: 1
+                    )
+                    
+                    StatRowWithControls(
+                        icon: "⚡",
+                        label: "Speed",
+                        value: Binding(
+                            get: { workingStats["Speed"] ?? (originalStats["Speed"] ?? 10) },
+                            set: { workingStats["Speed"] = $0 }
+                        ),
+                        originalValue: originalStats["Speed"] ?? 10,
+                        availablePoints: $tempAvailablePoints,
+                        step: 1
                     )
                 }
                 .padding(.horizontal, 20)
@@ -828,6 +816,16 @@ struct StatRowWithControls: View {
     @Binding var value: Int
     let originalValue: Int
     @Binding var availablePoints: Int
+    let step: Int
+    
+    init(icon: String, label: String, value: Binding<Int>, originalValue: Int, availablePoints: Binding<Int>, step: Int = 1) {
+        self.icon = icon
+        self.label = label
+        self._value = value
+        self.originalValue = originalValue
+        self._availablePoints = availablePoints
+        self.step = step
+    }
     
     var canDecrement: Bool {
         value > originalValue
@@ -848,7 +846,7 @@ struct StatRowWithControls: View {
             // Decrement button
             Button(action: {
                 if canDecrement {
-                    value -= 1
+                    value -= step
                     availablePoints += 1
                 }
             }) {
@@ -869,7 +867,7 @@ struct StatRowWithControls: View {
             // Increment button
             Button(action: {
                 if canIncrement {
-                    value += 1
+                    value += step
                     availablePoints -= 1
                 }
             }) {

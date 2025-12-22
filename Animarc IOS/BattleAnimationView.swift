@@ -23,8 +23,8 @@ enum BattleAnimationPhase {
 struct BattleAnimationView: View {
     let userAvatar: String      // "ProfileIcon/profile image"
     let opponentAvatar: String  // Opponent image name
-    let userFP: Int
-    let opponentFP: Int
+    let userStats: BattlerStats
+    let opponentStats: BattlerStats
     let onComplete: (BattleResult) -> Void
     
     // Animation state
@@ -400,15 +400,16 @@ struct BattleAnimationView: View {
     }
     
     private func calculateBattleResult() {
-        // Use existing BattleService to calculate result
-        let (didWin, difficulty) = BattleService.simulateBattle(
-            userFP: userFP,
-            opponentFP: opponentFP
+        // Use stat-based BattleService to calculate result
+        let (didWin, difficulty, performance) = BattleService.simulateBattle(
+            userStats: userStats,
+            opponentStats: opponentStats
         )
         
         let (xp, gold) = BattleService.calculateRewards(
             didWin: didWin,
             difficulty: difficulty,
+            performance: performance,
             exactGold: nil // Will be set by caller
         )
         
@@ -417,7 +418,8 @@ struct BattleAnimationView: View {
             xpEarned: xp,
             goldEarned: gold,
             opponentName: "",
-            difficultyTier: difficulty
+            difficultyTier: difficulty,
+            performance: performance
         )
     }
 }
@@ -573,8 +575,22 @@ struct BattleParticleView: View {
     BattleAnimationView(
         userAvatar: "ProfileIcon/profile image",
         opponentAvatar: "Opponents/_Stylized Cute Warrior Character (2)",
-        userFP: 1500,
-        opponentFP: 1400,
+        userStats: BattlerStats(
+            health: 175,
+            attack: 20,
+            defense: 20,
+            speed: 20,
+            level: 5,
+            focusPower: 1500
+        ),
+        opponentStats: BattlerStats(
+            health: 165,
+            attack: 25,
+            defense: 15,
+            speed: 25,
+            level: 5,
+            focusPower: 1400
+        ),
         onComplete: { result in
             print("Battle complete: \(result.didWin ? "Victory" : "Defeat")")
         }

@@ -77,6 +77,14 @@ struct BattleResultView: View {
                 
                 Spacer()
                 
+                // Battle Statistics Section
+                if battleResult.performance != nil {
+                    battleStatisticsSection
+                        .opacity(showRewards ? 1 : 0)
+                        .offset(y: showRewards ? 0 : 20)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.5), value: showRewards)
+                }
+                
                 // Rewards card
                 rewardsCard
                     .opacity(showRewards ? 1 : 0)
@@ -361,6 +369,147 @@ struct BattleResultView: View {
         .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
     }
     
+    // MARK: - Battle Statistics Section
+    
+    private var battleStatisticsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Section header
+            Text("BATTLE STATISTICS")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white.opacity(0.8))
+                .tracking(1.2)
+                .textCase(.uppercase)
+            
+            // 3-column grid layout
+            VStack(spacing: 12) {
+                // Column headers row
+                HStack(spacing: 0) {
+                    // Metric column header
+                    Text("Metric")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.5))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    
+                    // You column header
+                    Text("You")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Color(hex: "#f49d25"))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    
+                    // Opponent column header
+                    Text("Opponent")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Color(hex: "#DC2626").opacity(0.8))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                
+                // Stats rows
+                if let perf = battleResult.performance {
+                    // Damage row
+                    statGridRow(
+                        icon: "⚔️",
+                        label: "Damage",
+                        userValue: formatNumber(perf.userDamageDealt),
+                        opponentValue: formatNumber(perf.opponentDamageDealt),
+                        iconColor: Color(hex: "#EF4444")
+                    )
+                    
+                    // Crits row
+                    let userCritPercent = calculateCritPercent(crits: perf.userCriticalHits, exchanges: perf.totalExchanges)
+                    let oppCritPercent = calculateCritPercent(crits: perf.opponentCriticalHits, exchanges: perf.totalExchanges)
+                    statGridRow(
+                        icon: "💥",
+                        label: "Crits",
+                        userValue: "\(perf.userCriticalHits) (\(userCritPercent)%)",
+                        opponentValue: "\(perf.opponentCriticalHits) (\(oppCritPercent)%)",
+                        iconColor: Color(hex: "#F59E0B")
+                    )
+                    
+                    // Blocks row
+                    statGridRow(
+                        icon: "🛡️",
+                        label: "Blocks",
+                        userValue: "\(perf.userDamageBlocked)",
+                        opponentValue: "\(perf.opponentDamageBlocked)",
+                        iconColor: Color(hex: "#3B82F6")
+                    )
+                    
+                    // Perfect Dodges row
+                    statGridRow(
+                        icon: "💨",
+                        label: "Perfect Dodges",
+                        userValue: "\(perf.userPerfectDodges)",
+                        opponentValue: "\(perf.opponentPerfectDodges)",
+                        iconColor: Color(hex: "#8B5CF6")
+                    )
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(hex: "#27221B").opacity(0.9),
+                    Color(hex: "#181511").opacity(0.95)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
+    }
+    
+    // Helper view for grid row
+    private func statGridRow(
+        icon: String,
+        label: String,
+        userValue: String,
+        opponentValue: String,
+        iconColor: Color
+    ) -> some View {
+        HStack(spacing: 0) {
+            // Metric column (icon + label)
+            HStack(spacing: 4) {
+                Text(icon)
+                    .font(.system(size: 14))
+                Text(label)
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            
+            // You column (user value) - primary orange color
+            Text(userValue)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(Color(hex: "#f49d25"))
+                .frame(maxWidth: .infinity, alignment: .center)
+            
+            // Opponent column (opponent value) - red color
+            Text(opponentValue)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(Color(hex: "#DC2626").opacity(0.8))
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+    
+    // Helper to format numbers with commas
+    private func formatNumber(_ number: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: number)) ?? "\(number)"
+    }
+    
+    // Helper to calculate crit percentage
+    private func calculateCritPercent(crits: Int, exchanges: Int) -> Int {
+        guard exchanges > 0 else { return 0 }
+        return Int((Double(crits) / Double(exchanges)) * 100)
+    }
+    
     // MARK: - Action Buttons
     
     private var actionButtons: some View {
@@ -443,7 +592,24 @@ struct BattleButtonStyle: ButtonStyle {
             xpEarned: 50,
             goldEarned: 100,
             opponentName: "Orc Warlord",
-            difficultyTier: .fair
+            difficultyTier: .fair,
+            performance: BattlePerformance(
+                userDamageDealt: 320,
+                userDamageBlocked: 85,
+                userCriticalHits: 3,
+                userPerfectDodges: 2,
+                userEffectiveAttack: 120.0,
+                userEffectiveDefense: 110.0,
+                opponentDamageDealt: 180,
+                opponentDamageBlocked: 42,
+                opponentCriticalHits: 1,
+                opponentPerfectDodges: 0,
+                opponentEffectiveAttack: 90.0,
+                opponentEffectiveDefense: 95.0,
+                totalExchanges: 5,
+                battleIntensity: 0.7,
+                dominantStat: "Speed"
+            )
         ),
         opponent: Opponent(
             id: "1",
@@ -454,7 +620,12 @@ struct BattleButtonStyle: ButtonStyle {
             successRate: 65,
             focusPower: 1500,
             exactGoldReward: 500,
-            imageName: "Opponents/_Stylized Cute Warrior Character (2)"
+            imageName: "Opponents/_Stylized Cute Warrior Character (2)",
+            statHealth: 165,
+            statAttack: 25,
+            statDefense: 15,
+            statSpeed: 25,
+            statSpecialization: "Speedster"
         ),
         onBattleAgain: {},
         onReturnHome: {}

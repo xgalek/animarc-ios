@@ -23,10 +23,10 @@ struct UserProgress: Codable, Identifiable, Equatable {
     
     // Stat system fields
     var availableStatPoints: Int
-    var statSTR: Int
-    var statAGI: Int
-    var statINT: Int
-    var statVIT: Int
+    var statHealth: Int
+    var statAttack: Int
+    var statDefense: Int
+    var statSpeed: Int
     
     // Currency
     var gold: Int
@@ -44,10 +44,10 @@ struct UserProgress: Codable, Identifiable, Equatable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case availableStatPoints = "available_stat_points"
-        case statSTR = "stat_str"
-        case statAGI = "stat_agi"
-        case statINT = "stat_int"
-        case statVIT = "stat_vit"
+        case statHealth = "stat_health"
+        case statAttack = "stat_attack"
+        case statDefense = "stat_defense"
+        case statSpeed = "stat_speed"
         case gold
     }
 }
@@ -70,22 +70,19 @@ extension UserProgress {
             createdAt: Date(),
             updatedAt: Date(),
             availableStatPoints: 0,
-            statSTR: 10,
-            statAGI: 10,
-            statINT: 10,
-            statVIT: 10,
+            statHealth: 150,
+            statAttack: 10,
+            statDefense: 10,
+            statSpeed: 10,
             gold: 0
         )
     }
     
-    /// Calculate HP based on STR: HP = 150 + (STR * 5)
-    var calculatedHP: Int {
-        return 150 + (statSTR * 5)
-    }
-    
     /// Calculate total base stats for Focus Power formula
+    /// Health is normalized to "points allocated" scale (150 = 0 points, 155 = 1 point, etc.)
     var totalBaseStats: Int {
-        return statSTR + statAGI + statINT + statVIT
+        let healthPoints = (statHealth - 150) / 5  // Convert Health back to points scale
+        return healthPoints + statAttack + statDefense + statSpeed
     }
     
     /// Calculate total Focus Power

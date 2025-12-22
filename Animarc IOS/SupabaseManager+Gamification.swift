@@ -43,10 +43,10 @@ extension SupabaseManager {
             let total_focus_minutes: Int
             let total_sessions_completed: Int
             let available_stat_points: Int
-            let stat_str: Int
-            let stat_agi: Int
-            let stat_int: Int
-            let stat_vit: Int
+            let stat_health: Int
+            let stat_attack: Int
+            let stat_defense: Int
+            let stat_speed: Int
             let gold: Int
         }
         
@@ -59,10 +59,10 @@ extension SupabaseManager {
             total_focus_minutes: 0,
             total_sessions_completed: 0,
             available_stat_points: 5,
-            stat_str: 10,
-            stat_agi: 10,
-            stat_int: 10,
-            stat_vit: 10,
+            stat_health: 150,
+            stat_attack: 10,
+            stat_defense: 10,
+            stat_speed: 10,
             gold: 0
         )
         
@@ -153,18 +153,18 @@ extension SupabaseManager {
     /// Update stat allocation after user allocates stat points
     /// - Parameters:
     ///   - userId: The user's UUID
-    ///   - statSTR: New STR value
-    ///   - statAGI: New AGI value
-    ///   - statINT: New INT value
-    ///   - statVIT: New VIT value
+    ///   - statHealth: New Health value
+    ///   - statAttack: New Attack value
+    ///   - statDefense: New Defense value
+    ///   - statSpeed: New Speed value
     ///   - pointsSpent: Number of stat points spent (will be deducted from available)
     /// - Returns: Updated UserProgress
     func updateStatAllocation(
         userId: UUID,
-        statSTR: Int,
-        statAGI: Int,
-        statINT: Int,
-        statVIT: Int,
+        statHealth: Int,
+        statAttack: Int,
+        statDefense: Int,
+        statSpeed: Int,
         pointsSpent: Int
     ) async throws -> UserProgress {
         // Fetch current progress
@@ -178,18 +178,18 @@ extension SupabaseManager {
         }
         
         struct StatUpdateData: Codable {
-            let stat_str: Int
-            let stat_agi: Int
-            let stat_int: Int
-            let stat_vit: Int
+            let stat_health: Int
+            let stat_attack: Int
+            let stat_defense: Int
+            let stat_speed: Int
             let available_stat_points: Int
         }
         
         let updateData = StatUpdateData(
-            stat_str: statSTR,
-            stat_agi: statAGI,
-            stat_int: statINT,
-            stat_vit: statVIT,
+            stat_health: statHealth,
+            stat_attack: statAttack,
+            stat_defense: statDefense,
+            stat_speed: statSpeed,
             available_stat_points: current.availableStatPoints - pointsSpent
         )
         
