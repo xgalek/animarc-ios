@@ -6,21 +6,20 @@
 //
 
 import SwiftUI
-// TEMPORARILY DISABLED: import FamilyControls // Commented out pending Apple's approval
+import FamilyControls
 
 struct HomeView: View {
     @EnvironmentObject var progressManager: UserProgressManager
-    // TEMPORARILY DISABLED: @StateObject private var appBlockingManager = AppBlockingManager.shared
+    @StateObject private var appBlockingManager = AppBlockingManager.shared
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var quoteManager = QuoteManager.shared
     @State private var navigationPath = NavigationPath()
     @State private var showLevelUpModal = false
     @State private var showItemDropModal = false
     @State private var showStreakCelebration = false
-    // TEMPORARILY DISABLED: Permission-related state variables commented out
-    // @State private var showPermissionModal = false
-    // @State private var showPermissionDeniedAlert = false
-    // @State private var isRequestingPermission = false
+    @State private var showPermissionModal = false
+    @State private var showPermissionDeniedAlert = false
+    @State private var isRequestingPermission = false
     @State private var showFocusConfig = false
     @State private var isRefreshing = false
     @State private var currentQuote = ""
@@ -223,7 +222,7 @@ struct HomeView: View {
                     .opacity(contentAppeared ? 1 : 0)
                     .offset(y: contentAppeared ? 0 : 30)
                     .animation(.easeOut(duration: 0.6), value: contentAppeared)
-                    // TEMPORARILY DISABLED: .disabled(isRequestingPermission)
+                    .disabled(isRequestingPermission)
                 }
                 .padding(.top, 100)
                 
@@ -262,9 +261,8 @@ struct HomeView: View {
                 checkAndShowPendingRewards()
                 // Check for streak celebration (after rewards)
                 checkAndShowStreakCelebration()
-                // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
                 // Refresh authorization status
-                // appBlockingManager.refreshAuthorizationStatus()
+                appBlockingManager.refreshAuthorizationStatus()
             }
             .onChange(of: progressManager.userProgress) { _, newProgress in
                 // Check name entry modal when progress loads or updates
@@ -282,8 +280,6 @@ struct HomeView: View {
                 try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
                 checkNameEntryModal()
             }
-            // TEMPORARILY DISABLED: Permission modal and alert commented out pending Apple's approval
-            /*
             .sheet(isPresented: $showPermissionModal) {
                 AppBlockingPermissionModal(
                     isRequestingPermission: $isRequestingPermission,
@@ -307,7 +303,6 @@ struct HomeView: View {
             } message: {
                 Text("Focus sessions require app blocking permission. Please grant Screen Time permission in Settings to continue.")
             }
-            */
             .sheet(isPresented: $showLevelUpModal) {
                 LevelUpModalView(
                     oldLevel: progressManager.pendingLevelUp?.oldLevel ?? 1,
@@ -406,28 +401,23 @@ struct HomeView: View {
     }
     
     private func handleFocusButtonTap() {
-        // TEMPORARILY DISABLED: Simplified to directly show focus config modal
-        // Permission checking logic commented out pending Apple's approval
         // Check if permission has been requested
-        // if !appBlockingManager.hasRequestedPermission {
-        //     // First time - show permission modal
-        //     showPermissionModal = true
-        //     return
-        // }
-        //
-        // // Check current authorization status
-        // appBlockingManager.refreshAuthorizationStatus()
-        //
-        // if appBlockingManager.isAuthorized {
-        //     // Permission granted - show configuration modal first
-        //     showFocusConfig = true
-        // } else {
-        //     // Permission denied or revoked - show alert
-        //     showPermissionDeniedAlert = true
-        // }
+        if !appBlockingManager.hasRequestedPermission {
+            // First time - show permission modal
+            showPermissionModal = true
+            return
+        }
         
-        // Directly show focus configuration modal
-        showFocusConfig = true
+        // Check current authorization status
+        appBlockingManager.refreshAuthorizationStatus()
+        
+        if appBlockingManager.isAuthorized {
+            // Permission granted - show configuration modal first
+            showFocusConfig = true
+        } else {
+            // Permission denied or revoked - show alert
+            showPermissionDeniedAlert = true
+        }
     }
     
     private func checkAndShowPendingRewards() {
@@ -1384,10 +1374,9 @@ struct FocusConfigurationModal: View {
     let onPortalTransitionComplete: (@escaping () -> Void) -> Void
     @State private var selectedTag: String? = nil
     @State private var focusSettings = FocusSessionSettings.load()
-    // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
-    // @StateObject private var appBlockingManager = AppBlockingManager.shared
-    // @State private var selection = FamilyActivitySelection()
-    // @State private var showPicker = false
+    @StateObject private var appBlockingManager = AppBlockingManager.shared
+    // Note: FamilyActivityPicker kept commented out in FocusConfigurationModal
+    // Users configure allowed apps in Settings/Profile instead
     @Environment(\.dismiss) var dismiss
     
     private let focusTags = ["Deep Focus", "Study", "Reading", "Creative"]
@@ -1631,7 +1620,7 @@ struct FocusConfigurationModal: View {
         }
         .presentationDetents([.large, .medium])
         .presentationDragIndicator(.visible)
-        // TEMPORARILY DISABLED: FamilyActivityPicker commented out pending Apple's approval
+        // Note: FamilyActivityPicker kept commented out here - users configure allowed apps in Settings/Profile instead
         /*
         .familyActivityPicker(isPresented: $showPicker, selection: $selection)
         .onChange(of: selection) { _, newSelection in
@@ -1648,9 +1637,7 @@ struct FocusConfigurationModal: View {
 
 
 // MARK: - App Blocking Permission Modal
-// TEMPORARILY DISABLED: Commented out pending Apple's approval of Family Controls entitlement
 
-/*
 struct AppBlockingPermissionModal: View {
     @Binding var isRequestingPermission: Bool
     let onPermissionGranted: () -> Void
@@ -1769,7 +1756,6 @@ struct AppBlockingPermissionModal: View {
         }
     }
 }
-*/
 
 #Preview {
     HomeView(

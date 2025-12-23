@@ -6,18 +6,16 @@
 //
 
 import SwiftUI
-// TEMPORARILY DISABLED: import FamilyControls // Commented out pending Apple's approval
+import FamilyControls
 
 struct ProfileView: View {
     @EnvironmentObject var progressManager: UserProgressManager
-    // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
-    // @StateObject private var appBlockingManager = AppBlockingManager.shared
+    @StateObject private var appBlockingManager = AppBlockingManager.shared
     @State private var notificationsEnabled = true
     @State private var soundsEnabled = true
     @State private var sessionsToday: [FocusSession] = []
-    // TEMPORARILY DISABLED: FamilyActivitySelection state variables commented out
-    // @State private var selection = FamilyActivitySelection()
-    // @State private var showPicker = false
+    @State private var selection = FamilyActivitySelection()
+    @State private var showPicker = false
     @State private var showSignOutError = false
     @State private var signOutErrorMessage = ""
     @State private var isSigningOut = false
@@ -219,8 +217,6 @@ struct ProfileView: View {
                         .cornerRadius(15)
                         .padding(.horizontal, 20)
                         
-                        // TEMPORARILY DISABLED: App Allowlist Section commented out pending Apple's approval
-                        /*
                         // App Allowlist Section
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Allowed Apps")
@@ -369,7 +365,6 @@ struct ProfileView: View {
                             .padding(.horizontal, 20)
                         }
                         .padding(.top, 8)
-                        */
                         
                         // Future buttons placeholder
                         VStack(spacing: 12) {
@@ -452,11 +447,8 @@ struct ProfileView: View {
             isLoadingStats = true
             sessionsToday = await progressManager.getSessionsToday()
             isLoadingStats = false
-            // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
-            // appBlockingManager.refreshAuthorizationStatus()
+            appBlockingManager.refreshAuthorizationStatus()
         }
-        // TEMPORARILY DISABLED: FamilyActivityPicker commented out pending Apple's approval
-        /*
         .familyActivityPicker(isPresented: $showPicker, selection: $selection)
         .onChange(of: selection) { _, newSelection in
             // Update selection when user picks apps to allow
@@ -469,7 +461,6 @@ struct ProfileView: View {
             // Restore selection from manager when view appears
             selection = appBlockingManager.selectedActivity
         }
-        */
         .alert("Sign Out Error", isPresented: $showSignOutError) {
             Button("Retry") {
                 Task {

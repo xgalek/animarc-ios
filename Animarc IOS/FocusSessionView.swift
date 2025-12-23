@@ -15,8 +15,7 @@ enum PomodoroPhase {
 struct FocusSessionView: View {
     @Binding var navigationPath: NavigationPath
     @EnvironmentObject var progressManager: UserProgressManager
-    // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
-    // @StateObject private var appBlockingManager = AppBlockingManager.shared
+    @StateObject private var appBlockingManager = AppBlockingManager.shared
     @Environment(\.dismiss) var dismiss
     @State private var settings: FocusSessionSettings = FocusSessionSettings.load()
     @State private var elapsedTime: Int = 0 // For stopwatch mode (counts up)
@@ -25,9 +24,8 @@ struct FocusSessionView: View {
     @State private var currentPhase: PomodoroPhase = .focus
     @State private var currentPomodoroNumber: Int = 1
     @State private var timer: Timer?
-    // TEMPORARILY DISABLED: Blocking error state variables commented out
-    // @State private var blockingError: String?
-    // @State private var showBlockingError = false
+    @State private var blockingError: String?
+    @State private var showBlockingError = false
     @State private var showEndConfirmation = false
     @AppStorage("KeepScreenOnDuringFocus") private var keepScreenOn: Bool = true
     
@@ -204,8 +202,7 @@ struct FocusSessionView: View {
             settings = FocusSessionSettings.load()
             initializeTimer()
             startTimer()
-            // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
-            // startAppBlocking()
+            startAppBlocking()
             
             // Portal fade-reveal animation - emerge into the parallax world
             // Haptic feedback when emerging
@@ -221,11 +218,8 @@ struct FocusSessionView: View {
         }
         .onDisappear {
             stopTimer()
-            // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
-            // stopAppBlocking()
+            stopAppBlocking()
         }
-        // TEMPORARILY DISABLED: Blocking error alert commented out pending Apple's approval
-        /*
         .alert("Blocking Error", isPresented: $showBlockingError) {
             Button("OK") {
                 blockingError = nil
@@ -243,7 +237,6 @@ struct FocusSessionView: View {
                 Text(error)
             }
         }
-        */
     }
     
     // MARK: - Timer Functions
@@ -353,10 +346,10 @@ struct FocusSessionView: View {
     }
     
     // MARK: - App Blocking Functions
-    // TEMPORARILY DISABLED: Commented out pending Apple's approval of Family Controls entitlement
     
-    /*
     private func startAppBlocking() {
+        print("📱 FocusSessionView.startAppBlocking() called")
+        
         // Refresh authorization status
         appBlockingManager.refreshAuthorizationStatus()
         
@@ -365,35 +358,29 @@ struct FocusSessionView: View {
             blockingError = "App blocking permission is required. Please grant Screen Time permission in Settings to block distracting apps during focus sessions."
             showBlockingError = true
             // Don't block session - allow user to proceed without blocking
-            print("FocusSessionView: App blocking not authorized - session will continue without blocking")
+            print("❌ FocusSessionView: App blocking not authorized - session will continue without blocking")
             return
         }
         
-        // Check if apps have been selected for blocking
-        // If no apps selected yet, warn but don't block session (allow user to proceed)
-        // They can configure blocking in settings for next time
-        if appBlockingManager.blockedApplications.isEmpty {
-            print("FocusSessionView: Warning - No apps selected for blocking. Session will continue without blocking.")
-            // Don't show error - just log it. User can configure in settings.
-            return
-        }
+        print("✅ FocusSessionView: Authorization confirmed, calling startBlocking()...")
         
         do {
             try appBlockingManager.startBlocking()
-            print("FocusSessionView: App blocking started")
+            print("✅ FocusSessionView: App blocking started successfully")
+            print("   ℹ️ Now minimize the app and try to open TikTok, Instagram, etc.")
         } catch {
             // Graceful degradation - don't block session if blocking fails
             blockingError = "Failed to start app blocking: \(error.localizedDescription). Your focus session will continue without app blocking."
             showBlockingError = true
-            print("FocusSessionView: Failed to start blocking: \(error)")
+            print("❌ FocusSessionView: Failed to start blocking: \(error)")
         }
     }
     
     private func stopAppBlocking() {
+        print("📱 FocusSessionView.stopAppBlocking() called")
         appBlockingManager.stopBlocking()
-        print("FocusSessionView: App blocking stopped")
+        print("✅ FocusSessionView: App blocking stopped")
     }
-    */
 }
 
 #Preview {

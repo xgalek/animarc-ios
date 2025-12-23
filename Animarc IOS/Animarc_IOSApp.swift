@@ -45,10 +45,9 @@ struct Animarc_IOSApp: App {
             }
             .task {
                 await supabaseManager.checkExistingSession()
-                // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
                 // Ensure app blocking is in a clean state on launch
                 // Blocks will be applied when user starts a focus session
-                // AppBlockingManager.shared.stopBlocking()
+                AppBlockingManager.shared.stopBlocking()
             }
             .onChange(of: supabaseManager.isAuthenticated) { _, isAuthenticated in
                 if !isAuthenticated {
@@ -74,12 +73,10 @@ struct Animarc_IOSApp: App {
             // ManagedSettingsStore persists across app lifecycle
             break
         case .active:
-            // TEMPORARILY DISABLED: App blocking code commented out pending Apple's approval
             // App becoming active - refresh authorization status
-            // Task { @MainActor in
-            //     AppBlockingManager.shared.refreshAuthorizationStatus()
-            // }
-            break
+            Task { @MainActor in
+                AppBlockingManager.shared.refreshAuthorizationStatus()
+            }
         @unknown default:
             break
         }

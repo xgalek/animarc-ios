@@ -4,11 +4,7 @@
 //
 //  Manager for iOS Screen Time app blocking during focus sessions
 //
-//  TEMPORARILY DISABLED: Commented out pending Apple's approval of Family Controls entitlement.
-//  This code will be re-enabled once the entitlement is approved.
-//
 
-/*
 import Foundation
 import FamilyControls
 import ManagedSettings
@@ -47,6 +43,11 @@ final class AppBlockingManager: ObservableObject {
         self.settings = AppBlockingSettings.load()
         self.authorizationStatus = authorizationCenter.authorizationStatus
         
+        print("🏗️ AppBlockingManager initialized")
+        print("   📋 Initial authorizationStatus: \(authorizationStatus)")
+        print("   📊 Initial shield.applicationCategories: \(String(describing: managedSettingsStore.shield.applicationCategories))")
+        print("   📊 Initial shield.applications: \(String(describing: managedSettingsStore.shield.applications))")
+        
         // Observe authorization status changes
         Task {
             await observeAuthorizationStatus()
@@ -76,7 +77,9 @@ final class AppBlockingManager: ObservableObject {
     
     /// Check if authorization is granted
     var isAuthorized: Bool {
-        authorizationStatus == .approved
+        let authorized = authorizationStatus == .approved
+        print("🔐 AppBlockingManager.isAuthorized: \(authorized) (status: \(authorizationStatus))")
+        return authorized
     }
     
     /// Check if permission has been requested
@@ -86,77 +89,107 @@ final class AppBlockingManager: ObservableObject {
     
     // MARK: - Blocking Control
     
-    /// Selected applications to block (set via FamilyActivityPicker)
-    /// This will contain all apps EXCEPT the ones user wants to allow
+    /// Selected applications to ALLOW during focus (set via FamilyActivityPicker)
+    /// All apps NOT in this set will be blocked during focus sessions
+    /// Phone and Messages are automatically allowed by iOS
     private var selectedApplications = Set<ApplicationToken>()
     
     /// Start blocking apps during focus session
     func startBlocking() throws {
+        print("🚀 AppBlockingManager.startBlocking() called")
+        print("   📋 Current authorizationStatus: \(authorizationStatus)")
+        print("   📋 AuthorizationCenter status: \(authorizationCenter.authorizationStatus)")
+        
         guard isAuthorized else {
+            print("❌ AppBlockingManager: NOT AUTHORIZED - throwing error")
             throw AppBlockingError.notAuthorized
         }
         
-        // Note: Screen Time API requires users to select apps via FamilyActivityPicker
-        // We can't programmatically enumerate all apps. The blocking works by:
-        // 1. User selects apps to block via FamilyActivityPicker (stored in selectedApplications)
-        // 2. We apply those selections during focus sessions
-        // 3. Phone and Messages are automatically allowed by iOS
+        print("✅ AppBlockingManager: Authorization confirmed, applying shields...")
         
-        // Apply the selected applications to block
-        if !selectedApplications.isEmpty {
-            managedSettingsStore.shield.applications = selectedApplications
-        } else {
-            // If no apps selected yet, we can't block anything
-            // This should be handled by ensuring apps are selected before first session
-            print("AppBlockingManager: Warning - No apps selected for blocking")
-        }
+        // Block ALL apps - this should block everything except system essentials
+        // Phone and Messages are automatically allowed by iOS
+        
+        // Log current state before applying
+        print("   📊 BEFORE - shield.applicationCategories: \(String(describing: managedSettingsStore.shield.applicationCategories))")
+        print("   📊 BEFORE - shield.applications: \(String(describing: managedSettingsStore.shield.applications))")
+        
+        // Apply category blocking - block ALL categories
+        managedSettingsStore.shield.applicationCategories = ShieldSettings.ActivityCategoryPolicy.all()
+        print("   ✅ SET shield.applicationCategories = .all()")
+        
+        // Clear any specific app exceptions (block everything)
+        // Note: If we had an allowlist, we'd set it here
+        managedSettingsStore.shield.applications = nil
+        print("   ✅ SET shield.applications = nil (no exceptions)")
+        
+        // Log state after applying
+        print("   📊 AFTER - shield.applicationCategories: \(String(describing: managedSettingsStore.shield.applicationCategories))")
+        print("   📊 AFTER - shield.applications: \(String(describing: managedSettingsStore.shield.applications))")
         
         // Store the blocking state
         isBlockingActive = true
         
-        print("AppBlockingManager: Started blocking apps")
+        print("🎯 AppBlockingManager: Blocking ACTIVE - all app categories should be shielded")
+        print("   ℹ️ Phone, Messages, FaceTime remain accessible (iOS system behavior)")
     }
     
-    /// Set applications to block (called from FamilyActivityPicker selection)
+    /// Set applications to ALLOW (called from FamilyActivityPicker selection)
+    /// These apps will be accessible during focus, all others will be blocked
     func setBlockedApplications(_ applications: Set<ApplicationToken>) {
         selectedApplications = applications
         // If blocking is active, update immediately
         if isBlockingActive {
+            managedSettingsStore.shield.applicationCategories = ShieldSettings.ActivityCategoryPolicy.all()
             managedSettingsStore.shield.applications = selectedApplications
         }
     }
     
-    /// Set applications to block with full selection (for icon display)
+    /// Set applications to ALLOW with full selection (for icon display)
+    /// These apps will be accessible during focus, all others will be blocked
     func setBlockedApplications(_ applications: Set<ApplicationToken>, selection: FamilyActivitySelection) {
         selectedApplications = applications
         selectedActivity = selection
         // If blocking is active, update immediately
         if isBlockingActive {
+            managedSettingsStore.shield.applicationCategories = ShieldSettings.ActivityCategoryPolicy.all()
             managedSettingsStore.shield.applications = selectedApplications
         }
     }
     
-    /// Get currently selected applications for blocking
+    /// Get currently allowed applications (allowlist)
+    /// Note: Despite the name "blockedApplications", this actually returns the allowlist
+    /// This property name is kept for backward compatibility with existing UI code
     var blockedApplications: Set<ApplicationToken> {
         selectedApplications
     }
     
     /// Stop blocking apps
     func stopBlocking() {
+        print("🛑 AppBlockingManager.stopBlocking() called")
+        print("   📊 BEFORE - shield.applicationCategories: \(String(describing: managedSettingsStore.shield.applicationCategories))")
+        print("   📊 BEFORE - shield.applications: \(String(describing: managedSettingsStore.shield.applications))")
+        
         // Clear all application shields
         managedSettingsStore.clearAllSettings()
         isBlockingActive = false
         
-        print("AppBlockingManager: Stopped blocking apps")
+        print("   📊 AFTER - shield.applicationCategories: \(String(describing: managedSettingsStore.shield.applicationCategories))")
+        print("   📊 AFTER - shield.applications: \(String(describing: managedSettingsStore.shield.applications))")
+        print("✅ AppBlockingManager: All shields cleared - apps unblocked")
     }
     
     /// Note: ApplicationToken cannot be serialized in Screen Time API
     /// The blocking state is managed via ManagedSettingsStore which persists automatically
-    /// Selected applications are stored in memory via setBlockedApplications()
+    /// Allowed applications (allowlist) are stored in memory via setBlockedApplications()
     
     /// Refresh authorization status
     func refreshAuthorizationStatus() {
+        let oldStatus = authorizationStatus
         authorizationStatus = authorizationCenter.authorizationStatus
+        print("🔄 AppBlockingManager.refreshAuthorizationStatus()")
+        print("   📋 Old status: \(oldStatus)")
+        print("   📋 New status: \(authorizationStatus)")
     }
     
     // MARK: - Private Methods
@@ -189,4 +222,3 @@ enum AppBlockingError: LocalizedError {
         }
     }
 }
-*/
