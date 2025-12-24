@@ -48,6 +48,8 @@ extension SupabaseManager {
             let stat_defense: Int
             let stat_speed: Int
             let gold: Int
+            let portal_attempts: Int
+            let last_attempt_reset: Date
         }
         
         let newProgress = NewUserProgress(
@@ -63,7 +65,9 @@ extension SupabaseManager {
             stat_attack: 10,
             stat_defense: 10,
             stat_speed: 10,
-            gold: 0
+            gold: 0,
+            portal_attempts: 50,
+            last_attempt_reset: Calendar.current.startOfDay(for: Date())
         )
         
         let response: [UserProgress] = try await client

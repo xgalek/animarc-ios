@@ -10,7 +10,7 @@ import SwiftUI
 struct CharacterView: View {
     @EnvironmentObject var progressManager: UserProgressManager
     @State private var showChallengeAlert = false
-    @State private var showFindOpponent = false
+    @State private var showPortalRaid = false
     @State private var selectedPortalItem: PortalItem?
     @State private var showStatAllocation = false
     
@@ -430,9 +430,9 @@ struct CharacterView: View {
     
     private var challengeButton: some View {
         Button(action: {
-            showFindOpponent = true
+            showPortalRaid = true
         }) {
-            Text("⚔️ FIND OPPONENT")
+            Text("⚔️ RAID PORTAL")
                 .font(.headline)
                 .foregroundColor(.black)
                 .frame(maxWidth: .infinity)
@@ -467,9 +467,39 @@ struct CharacterView: View {
                         profileCardSection
                         focusPowerGoldCardSection
                         statsCardSection
-                        challengeButton
                     }
+                    .padding(.bottom, 120) // Extra padding for fixed button
                 }
+                
+                // Fixed bottom button - positioned above tab bar
+                VStack {
+                    Spacer()
+                    
+                    Button(action: {
+                        showPortalRaid = true
+                    }) {
+                        Text("⚔️ RAID PORTAL")
+                            .font(.headline)
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color(hex: "#FFE766"),
+                                        Color(hex: "#E87B41")
+                                    ]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(25)
+                            .shadow(color: Color(hex: "#FFE766").opacity(0.4), radius: 15, x: 0, y: 0)
+                            .shadow(color: Color(hex: "#E87B41").opacity(0.3), radius: 25, x: 0, y: 0)
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.bottom, 10) // Small spacing above tab bar
             }
             .alert("Inventory Full", isPresented: $showSlotFullAlert) {
                 Button("OK", role: .cancel) { }
@@ -517,8 +547,8 @@ struct CharacterView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
-            .sheet(isPresented: $showFindOpponent) {
-                FindOpponentView()
+            .sheet(isPresented: $showPortalRaid) {
+                PortalRaidView()
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }

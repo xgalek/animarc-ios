@@ -248,9 +248,9 @@ struct BattleAnimationView: View {
     private var statusText: String {
         switch phase {
         case .intro, .battling:
-            return "Engaging opponent..."
+            return "Attacking boss..."
         case .suspense:
-            return "Determining victor..."
+            return "Calculating damage..."
         case .revealing, .complete:
             return ""
         }
