@@ -484,6 +484,22 @@ struct PortalBossCard: View {
     let portalAttempts: Int
     let onTap: () -> Void
     
+    @State private var outerRotation: Double = 0
+    @State private var innerRotation: Double = 0
+    @State private var pulseOpacity: Double = 0.6
+    
+    private var rankInfo: RankInfo {
+        RankService.getRankByCode(boss.rank) ?? RankService.allRanks[0]
+    }
+    
+    private var rankColor: Color {
+        rankInfo.swiftUIColor
+    }
+    
+    private var rankTitle: String {
+        return "\(boss.rank)-RANK"
+    }
+    
     private var estimatedAttempts: String {
         let remainingHP = progress?.remainingHp ?? boss.maxHp
         let estimate = PortalService.estimateAttemptsNeeded(
@@ -491,7 +507,16 @@ struct PortalBossCard: View {
             bossStats: boss.battlerStats,
             remainingHP: remainingHP
         )
-        return "~\(estimate.min)-\(estimate.max) Sessions"
+        if estimate.min == estimate.max {
+            if estimate.min == 1 {
+                return "Short"
+            } else if estimate.min <= 3 {
+                return "~\(estimate.min)-\(estimate.max) Attempts"
+            } else {
+                return "Long"
+            }
+        }
+        return "~\(estimate.min)-\(estimate.max) Attempts"
     }
     
     private var bossRewards: (xp: Int, gold: Int) {
@@ -501,45 +526,54 @@ struct PortalBossCard: View {
         )
     }
     
+    private var bossLevel: Int {
+        RankService.getRankForLevel(userStats.level).minLevel
+    }
+    
     var body: some View {
         Button(action: onTap) {
             ZStack(alignment: .topLeading) {
+                // Background with particle effect for selected card
+                if isSelected {
+                    ParticleBackgroundView()
+                        .opacity(0.3)
+                }
+                
                 VStack(spacing: 0) {
-                    // Top section: Specialization badge and rank
-                    HStack {
-                        // Specialization badge (top-left)
-                        HStack(spacing: 4) {
-                            Image(systemName: specializationIcon)
-                                .font(.system(size: 10, weight: .bold))
-                            Text(boss.specialization.uppercased())
-                                .font(.system(size: 9.6, weight: .bold))
-                                .tracking(3)
-                        }
-                        .foregroundColor(boss.specializationColor)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(boss.specializationColor.opacity(0.1))
-                        .cornerRadius(8)
-                        
-                        Spacer()
-                        
-                        // Rank title (top-right)
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("\(boss.rank)-RANK ABYSS")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(Color(hex: "#FACC15"))
-                            Text("Recommended")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(Color(hex: "#9CA3AF"))
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
+                    // Top padding for content below badges
+                    Spacer()
+                        .frame(height: 40)
                     
-                    // Boss avatar and name
-                    VStack(spacing: 12) {
+                    // Boss avatar and name section
+                    VStack(spacing: 0) {
+                        // Avatar with animated borders
                         ZStack {
-                            // Avatar with dashed border
+                            // Outer spinning border ring
+                            Circle()
+                                .stroke(rankColor.opacity(0.3), lineWidth: 1)
+                                .frame(width: 108, height: 108)
+                                .rotationEffect(.degrees(outerRotation))
+                            
+                            // Middle dashed border ring (reverse rotation)
+                            Circle()
+                                .stroke(rankColor.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [5, 3]))
+                                .frame(width: 100, height: 100)
+                                .rotationEffect(.degrees(innerRotation))
+                            
+                            // Gradient blur background
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [rankColor.opacity(0.3), Color(hex: "#1e293b").opacity(0.5)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 96, height: 96)
+                                .blur(radius: 4)
+                            
+                            // Avatar with gradient border
+                        ZStack {
                             if let uiImage = UIImage(named: boss.imageName) {
                                 Image(uiImage: uiImage)
                                     .resizable()
@@ -554,156 +588,358 @@ struct PortalBossCard: View {
                                     )
                             }
                         }
-                        .frame(width: 100, height: 100)
+                            .frame(width: 90, height: 90)
                         .clipShape(Circle())
                         .overlay(
                             Circle()
                                 .stroke(
                                     LinearGradient(
-                                        colors: [Color(hex: "#EF4444"), Color(hex: "#F97316")],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    style: StrokeStyle(lineWidth: 2, dash: [5, 3])
-                                )
-                        )
-                        
-                        // Level badge
-                        Text("LV. \(RankService.getRankForLevel(userStats.level).minLevel)")
-                            .font(.system(size: 11, weight: .bold))
+                                            colors: [rankColor.opacity(0.8), rankColor.opacity(0.4), Color(hex: "#1e293b")],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        ),
+                                        lineWidth: 3
+                                    )
+                            )
+                            .shadow(color: rankColor.opacity(0.5), radius: 10)
+                            
+                            // Level badge overlay at bottom
+                            VStack {
+                                Spacer()
+                                Text("LV. \(bossLevel)")
+                                    .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color(hex: "#EF4444"))
-                            .cornerRadius(6)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [rankColor.opacity(0.9), rankColor.opacity(0.7)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .cornerRadius(4)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .stroke(rankColor.opacity(0.5), lineWidth: 1)
+                                    )
+                                    .shadow(color: rankColor.opacity(0.5), radius: 5)
+                                    .offset(y: 8)
+                            }
+                            .frame(width: 90, height: 90)
+                        }
+                        .frame(height: 120)
+                        .padding(.bottom, 16)
                         
                         // Boss name
                         Text(boss.name)
-                            .font(.system(size: 20, weight: .bold))
+                            .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
-                    }
-                    .padding(.vertical, 16)
+                            .shadow(color: .white.opacity(0.3), radius: 5)
+                            .padding(.bottom, 16)
                     
                     // Progress bar
-                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(spacing: 6) {
                         HStack {
-                            Text("CORRUPTION CLEARED")
+                                Text("Cleared")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
-                                .tracking(1)
+                                    .foregroundColor(rankColor.opacity(0.8))
+                                    .tracking(2)
                             Spacer()
                             Text("\(Int(progress?.progressPercent ?? 0))%")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(Color(hex: "#FACC15"))
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(rankColor)
                         }
+                            .padding(.horizontal, 4)
                         
                         GeometryReader { geometry in
                             ZStack(alignment: .leading) {
                                 // Background
                                 RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color(hex: "#374151").opacity(0.3))
-                                
-                                // Progress fill
+                                        .fill(Color(hex: "#1e293b").opacity(0.8))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                        )
+                                    
+                                    // Progress fill with gradient
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(
                                         LinearGradient(
-                                            colors: [Color(hex: "#EF4444"), Color(hex: "#F97316")],
+                                                colors: [rankColor.opacity(0.9), rankColor.opacity(0.7), rankColor.opacity(0.5)],
                                             startPoint: .leading,
                                             endPoint: .trailing
                                         )
                                     )
                                     .frame(width: geometry.size.width * CGFloat((progress?.progressPercent ?? 0) / 100.0))
+                                        .shadow(color: rankColor.opacity(0.6), radius: 8)
+                                        .overlay(
+                                            // Shimmer effect
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .fill(
+                                                    LinearGradient(
+                                                        colors: [Color.clear, Color.white.opacity(0.2), Color.clear],
+                                                        startPoint: .leading,
+                                                        endPoint: .trailing
+                                                    )
+                                                )
+                                                .frame(width: geometry.size.width * CGFloat((progress?.progressPercent ?? 0) / 100.0))
+                                        )
                             }
                         }
                         .frame(height: 8)
                     }
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
-                    
-                    // Stats grid
-                    HStack(spacing: 12) {
-                        StatBadge(icon: "⚔️", label: "ATK", value: "\(boss.statAttack)", color: Color(hex: "#FACC15"))
-                        StatBadge(icon: "🛡️", label: "DEF", value: "\(boss.statDefense)", color: Color(hex: "#3B82F6"))
-                        StatBadge(icon: "❤️", label: "HP", value: "\(boss.maxHp)", color: Color(hex: "#EF4444"))
-                        StatBadge(icon: "⚡", label: "SPD", value: "\(boss.statSpeed)", color: Color(hex: "#10B981"))
+                        .padding(.bottom, 24)
                     }
+                    
+                    // Stats section - single row with dividers
+                    HStack(spacing: 0) {
+                        StatItem(icon: "⚔️", label: "ATK", value: "\(boss.statAttack)", color: Color(hex: "#FACC15"))
+                        
+                        Divider()
+                            .frame(height: 40)
+                            .background(Color.white.opacity(0.1))
+                        
+                        StatItem(icon: "🛡️", label: "DEF", value: "\(boss.statDefense)", color: Color(hex: "#3B82F6"))
+                        
+                        Divider()
+                            .frame(height: 40)
+                            .background(Color.white.opacity(0.1))
+                        
+                        StatItem(icon: "❤️", label: "HP", value: "\(boss.maxHp)", color: Color(hex: "#EF4444"))
+                        
+                        Divider()
+                            .frame(height: 40)
+                            .background(Color.white.opacity(0.1))
+                        
+                        StatItem(icon: "⚡", label: "SPD", value: "\(boss.statSpeed)", color: Color(hex: "#10B981"))
+                    }
+                    .padding(.vertical, 12)
+                    .background(Color.black.opacity(0.2))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                    )
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 24)
                     
                     // Bottom section: Estimated effort and rewards
                     HStack {
                         // Estimated effort
                         VStack(alignment: .leading, spacing: 4) {
                             Text("EST. EFFORT")
-                                .font(.system(size: 9, weight: .bold))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(Color(hex: "#9CA3AF"))
-                                .tracking(1)
-                            HStack(spacing: 4) {
-                                Image(systemName: "moon.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Color(hex: "#FACC15"))
+                                .tracking(1.5)
+                            HStack(spacing: 6) {
+                                Image(systemName: estimatedEffortIcon)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(rankColor.opacity(0.8))
                                 Text(estimatedAttempts)
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(.white)
                             }
                         }
                         
                         Spacer()
                         
+                        // Divider
+                        Rectangle()
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 1, height: 32)
+                        
+                        Spacer()
+                        
                         // Boss rewards
                         VStack(alignment: .trailing, spacing: 4) {
                             Text("BOSS REWARDS")
-                                .font(.system(size: 9, weight: .bold))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(Color(hex: "#9CA3AF"))
-                                .tracking(1)
-                            HStack(spacing: 8) {
+                                .tracking(1.5)
+                            HStack(spacing: 12) {
+                                // XP
                                 HStack(spacing: 4) {
                                     Image(systemName: "sparkles")
                                         .font(.system(size: 12))
-                                        .foregroundColor(Color(hex: "#80D8FF"))
+                                        .foregroundColor(Color(hex: "#60A5FA"))
                                     Text("\(formatNumber(bossRewards.xp))")
-                                        .font(.system(size: 12, weight: .medium))
+                                        .font(.system(size: 13, weight: .bold))
                                         .foregroundColor(.white)
                                 }
+                                
+                                // Gold
                                 HStack(spacing: 4) {
                                     Image(systemName: "dollarsign.circle.fill")
                                         .font(.system(size: 12))
                                         .foregroundColor(Color(hex: "#FACC15"))
                                     Text("\(formatNumber(bossRewards.gold))")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(.white)
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(Color(hex: "#FEF3C7"))
                                 }
+                                
+                                // Item box icon
+                                Image(systemName: "shippingbox.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(rankColor)
+                                    .shadow(color: rankColor.opacity(0.5), radius: 3)
                             }
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
+                    .padding(.vertical, 16)
+                    .background(Color.black.opacity(0.3))
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(rankColor.opacity(0.2), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 24)
                 }
-                .background(Color(hex: "#131B29"))
+                .background(
+                    ZStack {
+                        // Base background
+                        Color(hex: isSelected ? "#161e31" : "#111625")
+                        
+                        // Gradient overlay
+                        LinearGradient(
+                            colors: [rankColor.opacity(0.1), Color.clear],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    }
+                )
                 .cornerRadius(24)
                 .overlay(
                     RoundedRectangle(cornerRadius: 24)
                         .stroke(
-                            isSelected ? Color(hex: "#F59E0B").opacity(0.8) : Color(hex: "#374151").opacity(0.3),
+                            isSelected ? rankColor.opacity(pulseOpacity) : Color.white.opacity(0.05),
                             lineWidth: isSelected ? 2 : 1
                         )
                 )
                 .shadow(
-                    color: isSelected ? Color(hex: "#F59E0B").opacity(0.3) : Color.clear,
-                    radius: isSelected ? 15 : 0
+                    color: isSelected ? rankColor.opacity(pulseOpacity * 0.4) : Color.clear,
+                    radius: isSelected ? 20 : 0
                 )
+                
+                // Top-left specialization badge - positioned at corner
+                HStack(spacing: 6) {
+                    Image(systemName: specializationIcon)
+                        .font(.system(size: 12))
+                    Text(boss.specialization.uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1.5)
+                }
+                .foregroundColor(boss.specializationColor)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .background(boss.specializationColor.opacity(0.1))
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 24,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 12,
+                        topTrailingRadius: 0
+                    )
+                )
+                .overlay(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 24,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 12,
+                        topTrailingRadius: 0
+                    )
+                    .stroke(boss.specializationColor.opacity(0.3), lineWidth: 1)
+                )
+                .shadow(color: boss.specializationColor.opacity(0.1), radius: 5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                
+                // Top-right rank badge - positioned at corner
+                Text(rankTitle)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(rankColor)
+                    .tracking(2)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                    .background(rankColor.opacity(0.1))
+                    .clipShape(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 0,
+                            bottomLeadingRadius: 12,
+                            bottomTrailingRadius: 0,
+                            topTrailingRadius: 24
+                        )
+                    )
+                    .overlay(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 0,
+                            bottomLeadingRadius: 12,
+                            bottomTrailingRadius: 0,
+                            topTrailingRadius: 24
+                        )
+                        .stroke(rankColor.opacity(0.3), lineWidth: 1)
+                    )
+                    .shadow(color: rankColor.opacity(0.1), radius: 5)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             }
         }
         .buttonStyle(PlainButtonStyle())
+        .onAppear {
+            // Start rotation animations
+            withAnimation(.linear(duration: 10).repeatForever(autoreverses: false)) {
+                outerRotation = 360
+            }
+            withAnimation(.linear(duration: 15).repeatForever(autoreverses: false)) {
+                innerRotation = -360
+            }
+            
+            // Start pulsing animation if selected
+            if isSelected {
+                startPulseAnimation()
+            }
+        }
+        .onChange(of: isSelected) { newValue in
+            if newValue {
+                startPulseAnimation()
+            } else {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    pulseOpacity = 0.6
+                }
+            }
+        }
+    }
+    
+    private func startPulseAnimation() {
+        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+            pulseOpacity = 0.9
+        }
     }
     
     private var specializationIcon: String {
         switch boss.specialization {
         case "Tank": return "shield.fill"
-        case "Glass Cannon": return "flame.fill"
+        case "Glass Cannon": return "sparkles"
         case "Speedster": return "bolt.fill"
         case "Balanced": return "equal.circle.fill"
         default: return "equal.circle.fill"
+        }
+    }
+    
+    private var estimatedEffortIcon: String {
+        let remainingHP = progress?.remainingHp ?? boss.maxHp
+        let estimate = PortalService.estimateAttemptsNeeded(
+            userStats: userStats,
+            bossStats: boss.battlerStats,
+            remainingHP: remainingHP
+        )
+        if estimate.min <= 1 {
+            return "hourglass"
+        } else if estimate.min <= 3 {
+            return "clock"
+        } else {
+            return "hourglass.bottom"
         }
     }
     
@@ -715,9 +951,9 @@ struct PortalBossCard: View {
     }
 }
 
-// MARK: - Stat Badge
+// MARK: - Stat Item (for new stats layout)
 
-struct StatBadge: View {
+struct StatItem: View {
     let icon: String
     let label: String
     let value: String
@@ -725,20 +961,137 @@ struct StatBadge: View {
     
     var body: some View {
         VStack(spacing: 4) {
-            Text(icon)
-                .font(.system(size: 16))
             Text(label)
                 .font(.system(size: 9, weight: .bold))
-                .foregroundColor(Color(hex: "#9CA3AF"))
-                .tracking(1)
+                .foregroundColor(Color(hex: "#6B7280"))
+                .tracking(1.5)
+            HStack(spacing: 6) {
+                Text(icon)
+                    .font(.system(size: 12))
             Text(value)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.white)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(Color(hex: "#0F1623"))
-        .cornerRadius(8)
     }
 }
+
+// MARK: - Particle Background View
+
+struct ParticleBackgroundView: View {
+    var body: some View {
+        GeometryReader { geometry in
+            let rows = Int(geometry.size.height / 20)
+            let cols = Int(geometry.size.width / 20)
+            
+            ZStack {
+                ForEach(0..<rows, id: \.self) { row in
+                    ForEach(0..<cols, id: \.self) { col in
+                        Circle()
+                            .fill(Color.white.opacity(0.07))
+                            .frame(width: 1, height: 1)
+                            .offset(x: CGFloat(col) * 20, y: CGFloat(row) * 20)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Corner Radius Extension
+
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
+    }
+}
+
+// MARK: - Uneven Rounded Rectangle Shape (for corner badges)
+
+struct UnevenRoundedRectangle: Shape {
+    var topLeadingRadius: CGFloat = 0
+    var bottomLeadingRadius: CGFloat = 0
+    var bottomTrailingRadius: CGFloat = 0
+    var topTrailingRadius: CGFloat = 0
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let width = rect.width
+        let height = rect.height
+        
+        // Start from top-left (after radius)
+        path.move(to: CGPoint(x: topLeadingRadius, y: 0))
+        
+        // Top edge
+        path.addLine(to: CGPoint(x: width - topTrailingRadius, y: 0))
+        
+        // Top-right corner
+        if topTrailingRadius > 0 {
+            path.addQuadCurve(
+                to: CGPoint(x: width, y: topTrailingRadius),
+                control: CGPoint(x: width, y: 0)
+            )
+        } else {
+            path.addLine(to: CGPoint(x: width, y: 0))
+        }
+        
+        // Right edge
+        path.addLine(to: CGPoint(x: width, y: height - bottomTrailingRadius))
+        
+        // Bottom-right corner
+        if bottomTrailingRadius > 0 {
+            path.addQuadCurve(
+                to: CGPoint(x: width - bottomTrailingRadius, y: height),
+                control: CGPoint(x: width, y: height)
+            )
+        } else {
+            path.addLine(to: CGPoint(x: width, y: height))
+        }
+        
+        // Bottom edge
+        path.addLine(to: CGPoint(x: bottomLeadingRadius, y: height))
+        
+        // Bottom-left corner
+        if bottomLeadingRadius > 0 {
+            path.addQuadCurve(
+                to: CGPoint(x: 0, y: height - bottomLeadingRadius),
+                control: CGPoint(x: 0, y: height)
+            )
+        } else {
+            path.addLine(to: CGPoint(x: 0, y: height))
+        }
+        
+        // Left edge
+        path.addLine(to: CGPoint(x: 0, y: topLeadingRadius))
+        
+        // Top-left corner
+        if topLeadingRadius > 0 {
+            path.addQuadCurve(
+                to: CGPoint(x: topLeadingRadius, y: 0),
+                control: CGPoint(x: 0, y: 0)
+            )
+        } else {
+            path.addLine(to: CGPoint(x: 0, y: 0))
+        }
+        
+        path.closeSubpath()
+        return path
+    }
+}
+
 

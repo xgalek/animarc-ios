@@ -20,7 +20,7 @@ struct RewardView: View {
     @State private var processingTimeout: Task<Void, Never>?
     
     // Animation state variables for entrance animations
-    @State private var campOpacity: Double = 1.0
+    @State private var campOpacity: Double = 0.0  // Start with black screen, fade in smoothly
     @State private var durationTextOpacity: Double = 0
     @State private var xpTextOpacity: Double = 0
     @State private var xpScale: CGFloat = 0.8
@@ -31,7 +31,11 @@ struct RewardView: View {
     
     var body: some View {
         ZStack {
-            // Animated GIF Background - fades in from black
+            // Black background that matches exit transition - creates seamless flow
+            Color.black
+                .ignoresSafeArea()
+            
+            // Animated GIF Background - fades in smoothly from black
             GIFImageView(gifName: "Animation_camp", contentMode: .scaleAspectFill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
@@ -39,7 +43,7 @@ struct RewardView: View {
                 .opacity(campOpacity)
             
             VStack(spacing: 0) {
-                // Top Section - Close button
+                // Top Section - Close button (fades in with background)
                 HStack {
                     Spacer()
                     Button(action: {
@@ -51,24 +55,13 @@ struct RewardView: View {
                     }
                     .padding(.top, 20)
                     .padding(.trailing, 20)
+                    .opacity(campOpacity) // Fade in with camp background
                 }
                 
                 if isProcessing {
-                    // Subtle loading indicator - small corner indicator
-                    VStack {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .scaleEffect(0.8)
-                                .tint(.white)
-                                .padding(12)
-                                .background(Color.black.opacity(0.3))
-                                .cornerRadius(12)
-                                .padding(.top, 20)
-                                .padding(.trailing, 20)
-                        }
-                        Spacer()
-                    }
+                    // Processing happens silently - no visible spinner
+                    // The camp background fades in smoothly while processing
+                    EmptyView()
                 } else if hasError {
                     // Error state
                     VStack(spacing: 24) {
@@ -186,8 +179,18 @@ struct RewardView: View {
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .tabBar)
-        .task {
-            await processSessionReward()
+        .onAppear {
+            // Start processing immediately in background
+            Task {
+                await processSessionReward()
+            }
+            
+            // Start smooth fade-in of camp background immediately
+            // This creates a seamless transition from the black exit screen
+            // Processing happens while the background fades in
+            withAnimation(.easeOut(duration: 1.2)) {
+                campOpacity = 1.0
+            }
         }
         .onChange(of: isProcessing) { _, newValue in
             // Trigger content animations when processing completes and there's no error
@@ -282,33 +285,35 @@ struct RewardView: View {
     // MARK: - Animation Functions
     
     private func startContentAnimations() {
-        // Content animations start after camp has faded in
-        // 0.8s: "Focused for XX:XX" text fades in (0.4s, easeIn)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            withAnimation(.easeIn(duration: 0.4)) {
+        // Content animations start smoothly after camp background has faded in
+        // Timing is adjusted to feel more natural and responsive
+        
+        // 0.3s: "Focused for XX:XX" text fades in (smooth, faster)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.easeOut(duration: 0.5)) {
                 durationTextOpacity = 1.0
             }
         }
         
-        // 1.0s: "+XXX XP" text fades in + pops (0.5s, spring)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+        // 0.5s: "+XXX XP" text fades in + pops (spring animation for delight)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.75)) {
                 xpTextOpacity = 1.0
                 xpScale = 1.0
             }
         }
         
-        // 1.3s: Breakdown box fades in + slides up (0.4s, easeOut)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
-            withAnimation(.easeOut(duration: 0.4)) {
+        // 0.8s: Breakdown box fades in + slides up (smooth reveal)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            withAnimation(.easeOut(duration: 0.5)) {
                 breakdownOpacity = 1.0
                 breakdownOffset = 0
             }
         }
         
-        // 1.5s: Continue button fades in (0.3s, easeIn)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.easeIn(duration: 0.3)) {
+        // 1.0s: Continue button fades in (final element)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.easeOut(duration: 0.4)) {
                 continueButtonOpacity = 1.0
             }
         }

@@ -47,9 +47,9 @@ struct MainTabView: View {
         appearance.backgroundColor = UIColor(hex: "#1A2332")
         
         // Selected item color
-        appearance.stackedLayoutAppearance.selected.iconColor = UIColor(hex: "#8B5CF6")
+        appearance.stackedLayoutAppearance.selected.iconColor = UIColor.white
         appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
-            .foregroundColor: UIColor(hex: "#8B5CF6")
+            .foregroundColor: UIColor.white
         ]
         
         // Unselected item color (muted gray)
@@ -79,18 +79,18 @@ struct MainTabView: View {
                         Label("Home", systemImage: "house.fill")
                     }
                 
-                // Stats Tab
-                StatsView()
-                    .environmentObject(progressManager)
-                    .tabItem {
-                        Label("Stats", systemImage: "chart.bar.fill")
-                    }
-                
                 // Character Tab
                 CharacterView()
                     .environmentObject(progressManager)
                     .tabItem {
                         Label("Character", systemImage: "shield.fill")
+                    }
+                
+                // Stats Tab
+                StatsView()
+                    .environmentObject(progressManager)
+                    .tabItem {
+                        Label("Stats", systemImage: "chart.bar.fill")
                     }
                 
                 // Settings Tab
@@ -100,7 +100,7 @@ struct MainTabView: View {
                         Label("Settings", systemImage: "gearshape.fill")
                     }
             }
-            .tint(Color(hex: "#8B5CF6"))
+            .tint(.white)
             
             // Portal transition overlay - covers everything including tab bar
             if showPortalTransition {

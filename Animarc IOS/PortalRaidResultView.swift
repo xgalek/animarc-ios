@@ -75,6 +75,7 @@ struct PortalRaidResultView: View {
                 
                 // Damage dealt info
                 damageInfoSection
+                    .padding(.top, 24)
                     .opacity(showRewards ? 1 : 0)
                     .offset(y: showRewards ? 0 : 20)
                     .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.5), value: showRewards)
@@ -82,6 +83,7 @@ struct PortalRaidResultView: View {
                 // Rewards card (only if defeated)
                 if isBossDefeated, let rewards = rewards {
                     rewardsCard(rewards: rewards)
+                        .padding(.top, 20)
                         .opacity(showRewards ? 1 : 0)
                         .offset(y: showRewards ? 0 : 30)
                         .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.6), value: showRewards)
@@ -118,7 +120,7 @@ struct PortalRaidResultView: View {
     private var headerSection: some View {
         VStack(spacing: 8) {
             Text(isBossDefeated ? "BOSS DEFEATED!" : "BOSS WEAKENED")
-                .font(.system(size: 56, weight: .black))
+                .font(.system(size: 36, weight: .black))
                 .tracking(-1)
                 .foregroundStyle(
                     isBossDefeated
@@ -228,78 +230,121 @@ struct PortalRaidResultView: View {
     private var damageInfoSection: some View {
         VStack(spacing: 16) {
             // Damage dealt
-            HStack(spacing: 12) {
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(Color(hex: "#F59E0B"))
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("DAMAGE DEALT")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white.opacity(0.6))
-                        .tracking(1)
-                    
-                    Text("+\(result.damageDealt)")
-                        .font(.system(size: 32, weight: .black))
-                        .foregroundColor(Color(hex: "#EF4444"))
-                }
-            }
-            
-            // Total progress
-            HStack(spacing: 12) {
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(Color(hex: "#3B82F6"))
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("TOTAL PROGRESS")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white.opacity(0.6))
-                        .tracking(1)
-                    
-                    Text("\(Int(progress.progressPercent))%")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(Color(hex: "#FACC15"))
-                }
-            }
-            
-            // Remaining HP
-            if !isBossDefeated {
+            HStack {
+                Spacer()
                 HStack(spacing: 12) {
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(Color(hex: "#EF4444"))
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(Color(hex: "#F59E0B"))
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("REMAINING HP")
+                        Text("DAMAGE DEALT")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.white.opacity(0.6))
                             .tracking(1)
                         
-                        Text("\(progress.remainingHp)")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
+                        Text("+\(result.damageDealt)")
+                            .font(.system(size: 32, weight: .black))
+                            .foregroundColor(Color(hex: "#EF4444"))
                     }
+                }
+                Spacer()
+            }
+            
+            // Total progress
+            HStack {
+                Spacer()
+                HStack(spacing: 12) {
+                    Image(systemName: "chart.bar.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(Color(hex: "#3B82F6"))
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("TOTAL PROGRESS")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white.opacity(0.6))
+                            .tracking(1)
+                        
+                        Text("\(Int(progress.progressPercent))%")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(Color(hex: "#FACC15"))
+                    }
+                }
+                Spacer()
+            }
+            
+            // Remaining HP
+            if !isBossDefeated {
+                HStack {
+                    Spacer()
+                    HStack(spacing: 12) {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(Color(hex: "#EF4444"))
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("REMAINING HP")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.white.opacity(0.6))
+                                .tracking(1)
+                            
+                            Text("\(progress.remainingHp)")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                    Spacer()
                 }
             }
         }
-        .padding(20)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(hex: "#27221B").opacity(0.9),
-                    Color(hex: "#181511").opacity(0.95)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(.vertical, 24)
+        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity)
+        .background {
+            ZStack {
+                // Dark glassmorphic background
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(hex: "#1a1a1a").opacity(0.85),
+                                Color(hex: "#0f0f0f").opacity(0.9)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .blur(radius: 0.5)
+                
+                // Subtle dark overlay for glass effect
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.3),
+                                Color.black.opacity(0.2)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+        }
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.4),
+                            Color.white.opacity(0.15)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
         )
-        .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
+        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
     }
     
     // MARK: - Rewards Card
