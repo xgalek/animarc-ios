@@ -54,6 +54,14 @@ final class UserProgressManager: ObservableObject {
     /// Pending item drop to be celebrated on HomeView
     @Published var pendingItemDrop: PortalItem?
     
+    /// Pending portal boss item drop (separate from daily drops)
+    @Published var pendingPortalBossItemDrop: PortalItem?
+    
+    /// Previous XP values for animation (set when XP is awarded)
+    @Published var previousTotalXP: Int64?
+    @Published var previousLevel: Int?
+    @Published var shouldAnimateXPChange: Bool = false
+    
     // MARK: - Computed Properties
     
     /// Current level (defaults to 1 if not loaded)
@@ -129,6 +137,11 @@ final class UserProgressManager: ObservableObject {
         print("UserProgressManager: Loading progress for user \(userId)")
         isLoading = true
         errorMessage = nil
+        
+        // Clear any pending animation flags (will be set again if XP is awarded)
+        shouldAnimateXPChange = false
+        previousTotalXP = nil
+        previousLevel = nil
         
         var criticalFailures = 0
         
@@ -310,6 +323,11 @@ final class UserProgressManager: ObservableObject {
             
             print("awardXP: Progress updated - New total XP: \(updatedProgress.totalXPEarned)")
             
+            // Store previous values for animation before updating
+            self.previousTotalXP = currentProgress.totalXPEarned
+            self.previousLevel = currentProgress.currentLevel
+            self.shouldAnimateXPChange = true
+            
             // Update local state
             self.userProgress = updatedProgress
             
@@ -465,6 +483,7 @@ final class UserProgressManager: ObservableObject {
         pendingLevelUp = nil
         pendingRankUp = nil
         pendingItemDrop = nil
+        pendingPortalBossItemDrop = nil
     }
     
     // MARK: - Error Logging

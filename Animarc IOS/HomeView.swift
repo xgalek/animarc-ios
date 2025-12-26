@@ -15,6 +15,7 @@ struct HomeView: View {
     @StateObject private var quoteManager = QuoteManager.shared
     @State private var navigationPath = NavigationPath()
     @State private var showLevelUpModal = false
+    @State private var showRankUpModal = false
     @State private var showItemDropModal = false
     @State private var showStreakCelebration = false
     @State private var showPermissionModal = false
@@ -101,53 +102,14 @@ struct HomeView: View {
                             .buttonStyle(PlainButtonStyle())
                             .disabled(progressManager.isLoading)
                             
-                            // XP Progress Bar - thicker with level on left and XP on right
-                            GeometryReader { geometry in
-                                let progressPercent = progressManager.levelProgress.progressPercent
-                                let progressWidth = geometry.size.width * (progressPercent / 100.0)
-                                
-                                ZStack(alignment: .leading) {
-                                    // Background
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color(hex: "#9CA3AF").opacity(0.3))
-                                    
-                                    // Progress fill - orange
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color(hex: "#FF9500"))
-                                        .frame(width: max(progressWidth, 0))
-                                    
-                                    // Level text on left and XP text on right
-                                    HStack {
-                                        // Level label on the left
-                                        if progressManager.isLoading {
-                                            Text("LV.1")
-                                                .font(.caption)
-                                                .foregroundColor(.white)
-                                                .shimmer()
-                                        } else {
-                                            Text("LV.\(progressManager.currentLevel)")
-                                                .font(.caption)
-                                                .foregroundColor(.white)
-                                        }
-                                        
-                                        Spacer()
-                                        
-                                        // XP text on the right
-                                        if progressManager.isLoading {
-                                            Text("0/0xp")
-                                                .font(.caption)
-                                                .foregroundColor(.white)
-                                                .shimmer()
-                                        } else {
-                                            let levelProgress = progressManager.levelProgress
-                                            Text("\(levelProgress.xpInCurrentLevel)/\(levelProgress.xpNeededForNext)xp")
-                                                .font(.caption)
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                    .padding(.horizontal, 8)
-                                }
-                            }
+                            // XP Progress Bar - animated with micro-interactions
+                            AnimatedXPProgressBar(
+                                levelProgress: progressManager.levelProgress,
+                                isLoading: progressManager.isLoading,
+                                previousXP: progressManager.previousTotalXP,
+                                previousLevel: progressManager.previousLevel,
+                                shouldAnimate: progressManager.shouldAnimateXPChange
+                            )
                             .frame(height: 24)
                             
                             // Rank badge - minimalistic
@@ -158,7 +120,7 @@ struct HomeView: View {
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 5)
                                     .frame(height: 24)
-                                    .background(Color(hex: "#9CA3AF"))
+                                    .background(Color(hex: "#4A90A4"))
                                     .cornerRadius(8)
                                     .shimmer()
                             } else {
@@ -307,16 +269,37 @@ struct HomeView: View {
                 LevelUpModalView(
                     oldLevel: progressManager.pendingLevelUp?.oldLevel ?? 1,
                     newLevel: progressManager.pendingLevelUp?.newLevel ?? 1,
-                    rankUp: progressManager.pendingRankUp
+                    rankUp: nil
                 ) {
-                    // On dismiss, clear level up and check for item drop
+                    // On dismiss, clear level up
                     progressManager.pendingLevelUp = nil
-                    progressManager.pendingRankUp = nil
                     showLevelUpModal = false
                     
-                    // Check for item drop after level up modal closes
-                    if progressManager.pendingItemDrop != nil {
-                        showItemDropModal = true
+                    // If there's a rank up, show it next
+                    if progressManager.pendingRankUp != nil {
+                        showRankUpModal = true
+                    } else {
+                        // Otherwise check for item drop
+                        if progressManager.pendingItemDrop != nil {
+                            showItemDropModal = true
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showRankUpModal) {
+                if let rankUp = progressManager.pendingRankUp {
+                    RankUpModalView(
+                        oldRank: rankUp.oldRank,
+                        newRank: rankUp.newRank
+                    ) {
+                        // On dismiss, clear rank up
+                        progressManager.pendingRankUp = nil
+                        showRankUpModal = false
+                        
+                        // Check for item drop after rank up modal closes
+                        if progressManager.pendingItemDrop != nil {
+                            showItemDropModal = true
+                        }
                     }
                 }
             }
@@ -427,7 +410,13 @@ struct HomeView: View {
             return
         }
         
-        // If no level up, check for item drop
+        // Then check for rank up (if no level up)
+        if progressManager.pendingRankUp != nil {
+            showRankUpModal = true
+            return
+        }
+        
+        // If no level up or rank up, check for item drop
         if progressManager.pendingItemDrop != nil {
             showItemDropModal = true
         }
@@ -465,7 +454,7 @@ struct HomeView: View {
     
     private func checkAndShowStreakCelebration() {
         // Only show if no other modals are showing and conditions are met
-        guard !showLevelUpModal, !showItemDropModal else {
+        guard !showLevelUpModal, !showRankUpModal, !showItemDropModal else {
             return // Wait for other modals to finish
         }
         
@@ -492,7 +481,7 @@ struct HomeView: View {
         }
         
         // Only show if no other modals are showing
-        guard !showLevelUpModal, !showItemDropModal else {
+        guard !showLevelUpModal, !showRankUpModal, !showItemDropModal else {
             return
         }
         
@@ -512,7 +501,7 @@ struct HomeView: View {
 struct LevelUpModalView: View {
     let oldLevel: Int
     let newLevel: Int
-    let rankUp: (oldRank: RankInfo, newRank: RankInfo)?
+    let rankUp: (oldRank: RankInfo, newRank: RankInfo)?  // Keep for backward compatibility but won't be used
     let onDismiss: () -> Void
     
     // Animation state variables
@@ -560,32 +549,6 @@ struct LevelUpModalView: View {
                         .scaleEffect(levelScale)
                         .padding(.vertical, 20)
                     
-                    // Rank Badge (only if rank changed)
-                    if let rankUp = rankUp {
-                        VStack(spacing: 8) {
-                            Text("⭐ RANK UP!")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(rankUp.newRank.swiftUIColor)
-                            
-                            Text("\(rankUp.oldRank.code)-Rank → \(rankUp.newRank.code)-Rank")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                            
-                            Text(rankUp.newRank.title)
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.9))
-                        }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 20)
-                        .background(rankUp.newRank.swiftUIColor.opacity(0.2))
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(rankUp.newRank.swiftUIColor.opacity(0.5), lineWidth: 1)
-                        )
-                        .opacity(contentOpacity)
-                    }
-                    
                     Spacer()
                     
                     // Continue button
@@ -593,7 +556,7 @@ struct LevelUpModalView: View {
                         Text("Continue")
                             .font(.headline)
                             .fontWeight(.semibold)
-                            .foregroundColor(.white)
+                            .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
                             .background(goldColor)
@@ -700,6 +663,178 @@ struct LevelUpModalView: View {
             // Start confetti explosion (starts at 0.5s, slightly after pop begins)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 showConfetti = true
+            }
+        }
+        
+        // Phase 4: Content fade-in (0.4s, starts at 0.9s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            withAnimation(.easeIn(duration: 0.4)) {
+                contentOpacity = 1.0
+            }
+        }
+    }
+}
+
+// MARK: - Rank Up Modal
+
+struct RankUpModalView: View {
+    let oldRank: RankInfo
+    let newRank: RankInfo
+    let onDismiss: () -> Void
+    
+    // Animation state variables
+    @State private var backgroundOpacity: Double = 0
+    @State private var cardScale: CGFloat = 0.9
+    @State private var borderOpacity: Double = 0
+    @State private var rankScale: CGFloat = 0.5
+    @State private var rankGlow: CGFloat = 0
+    @State private var contentOpacity: Double = 0
+    @State private var showSparkles: Bool = false
+    @State private var gradientRotation: Double = 0
+    
+    // Rank color (dynamic based on new rank)
+    private var rankColor: Color {
+        newRank.swiftUIColor
+    }
+    
+    // Gradient colors for border (based on rank color)
+    private var gradientColors: [Color] {
+        [
+            rankColor.opacity(0.9),
+            rankColor.opacity(0.7),
+            rankColor.opacity(0.5),
+            rankColor.opacity(0.9)
+        ]
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // Background: Semi-transparent black overlay
+                Color.black.opacity(backgroundOpacity)
+                    .ignoresSafeArea()
+                
+                // Glassmorphic card container
+                VStack(spacing: 24) {
+                    // Header - "⭐ RANK UP!"
+                    Text("⭐ RANK UP!")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(rankColor)
+                        .shadow(color: rankColor.opacity(0.5), radius: 8, x: 0, y: 2)
+                        .opacity(contentOpacity)
+                    
+                    // Hero Element: NEW rank (e.g., "D-Rank")
+                    Text("\(newRank.code)-Rank")
+                        .font(.system(size: 90, weight: .bold))
+                        .foregroundColor(rankColor)
+                        .shadow(color: rankColor.opacity(rankGlow), radius: 30, x: 0, y: 0)
+                        .scaleEffect(rankScale)
+                        .padding(.vertical, 20)
+                    
+                    Spacer()
+                    
+                    // Continue button (rank color background)
+                    Button(action: onDismiss) {
+                        Text("Continue")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(rankColor)
+                            .cornerRadius(25)
+                            .shadow(color: rankColor.opacity(0.6), radius: 15, x: 0, y: 5)
+                    }
+                    .opacity(contentOpacity)
+                }
+                .padding(.top, 50)
+                .padding(.bottom, 70)
+                .padding(.horizontal, 30)
+                .scaleEffect(cardScale)
+                .background(
+                    // Glassmorphic background (same as level up)
+                    ZStack {
+                        Color(hex: "#14141E")
+                            .opacity(0.85)
+                        
+                        // Frosted glass effect
+                        Color.white.opacity(0.02)
+                    }
+                )
+                .background(.ultraThinMaterial)
+                .cornerRadius(28)
+                .overlay(
+                    // Animated gradient border (rank color)
+                    RoundedRectangle(cornerRadius: 28)
+                        .stroke(
+                            AngularGradient(
+                                colors: gradientColors,
+                                center: .center,
+                                angle: .degrees(gradientRotation)
+                            ),
+                            lineWidth: 3.5
+                        )
+                        .opacity(borderOpacity)
+                )
+                // Soft outer glow - rank color
+                .shadow(color: rankColor.opacity(0.4 * borderOpacity), radius: 35, x: 0, y: 0)
+                .shadow(color: Color.black.opacity(0.3), radius: 30, x: 0, y: 15)
+                .padding(.horizontal, 20)
+                
+                // Sparkle overlay - DIFFERENT from confetti
+                if showSparkles {
+                    SparkleRainView(
+                        primaryColor: rankColor,
+                        particleCount: 60
+                    )
+                    .allowsHitTesting(false)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(.clear)
+        .onAppear {
+            startAnimationSequence()
+        }
+    }
+    
+    private func startAnimationSequence() {
+        // Start gradient rotation animation (continuous)
+        withAnimation(.linear(duration: 8).repeatForever(autoreverses: false)) {
+            gradientRotation = 360
+        }
+        
+        // Phase 1: Background fade-in (0.2s)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            backgroundOpacity = 0.5
+        }
+        
+        // Phase 2: Card entrance with spring (0.4s, starts at 0.2s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                cardScale = 1.0
+                borderOpacity = 1.0
+            }
+        }
+        
+        // Phase 3: Rank POP (0.6s, starts at 0.4s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            // Scale from 0.5x → 1.2x → 1.0x with glow burst
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                rankScale = 1.2
+                rankGlow = 1.0
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    rankScale = 1.0
+                }
+            }
+            
+            // Start sparkles (starts at 0.5s, slightly after pop begins)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                showSparkles = true
             }
         }
         

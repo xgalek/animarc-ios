@@ -172,7 +172,7 @@ struct PortalRaidView: View {
                             Text("ATTACK BOSS")
                                 .font(.system(size: 18, weight: .bold))
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(
@@ -431,8 +431,11 @@ struct PortalRaidView: View {
                 
                 let bossRewards = PortalService.calculateBossRewards(
                     bossRank: raidData.boss.rank,
-                    bossLevel: RankService.getRankForLevel(progressManager.currentLevel).minLevel
+                    bossLevel: RankService.getBossLevelForRank(rankCode: raidData.boss.rank, seed: raidData.boss.id.hashValue)
                 )
+                
+                // Save old level before updating
+                let oldLevel = progressManager.userProgress?.currentLevel ?? 1
                 
                 // Update user progress with rewards
                 let updatedUserProgress = try await SupabaseManager.shared.updateGoldAndXP(
@@ -441,8 +444,32 @@ struct PortalRaidView: View {
                     xpToAdd: bossRewards.xp
                 )
                 
+                // Drop portal boss item (non-critical, don't fail if it errors)
+                do {
+                    let droppedItem = try await SupabaseManager.shared.dropPortalBossItem(
+                        userId: userId,
+                        bossRank: raidData.boss.rank
+                    )
+                    await MainActor.run {
+                        progressManager.pendingPortalBossItemDrop = droppedItem
+                    }
+                } catch {
+                    print("Failed to drop portal boss item: \(error)")
+                    // Non-critical error, don't show to user
+                }
+                
                 await MainActor.run {
                     progressManager.userProgress = updatedUserProgress
+                    
+                    // Check for level up and set pending flag so modal can show later
+                    let newLevel = updatedUserProgress.currentLevel
+                    if newLevel > oldLevel {
+                        // Check for rank up
+                        if let rankUp = RankService.checkForRankUp(oldLevel: oldLevel, newLevel: newLevel) {
+                            progressManager.pendingRankUp = (oldRank: rankUp.oldRank, newRank: rankUp.newRank)
+                        }
+                        progressManager.pendingLevelUp = (oldLevel: oldLevel, newLevel: newLevel)
+                    }
                 }
                 
                 rewards = bossRewards
@@ -522,12 +549,12 @@ struct PortalBossCard: View {
     private var bossRewards: (xp: Int, gold: Int) {
         PortalService.calculateBossRewards(
             bossRank: boss.rank,
-            bossLevel: RankService.getRankForLevel(userStats.level).minLevel
+            bossLevel: RankService.getBossLevelForRank(rankCode: boss.rank, seed: boss.id.hashValue)
         )
     }
     
     private var bossLevel: Int {
-        RankService.getRankForLevel(userStats.level).minLevel
+        RankService.getBossLevelForRank(rankCode: boss.rank, seed: boss.id.hashValue)
     }
     
     var body: some View {

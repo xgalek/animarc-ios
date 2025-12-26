@@ -133,7 +133,12 @@ extension SupabaseManager {
         // Roll stat value based on effective rank
         let statValue = rollStatValue(config: selectedConfig, rank: effectiveRank)
         
+        // Check if there are available equipment slots (max 8)
+        let equippedCount = try await getEquippedItemCount(userId: userId)
+        let shouldAutoEquip = equippedCount < 8
+        
         // Create new item (store rolled rank for quality display)
+        // Auto-equip if there are available slots
         let newItem = PortalItem(
             id: UUID(),
             name: selectedConfig.name,
@@ -141,7 +146,7 @@ extension SupabaseManager {
             statType: selectedConfig.statType,
             statValue: statValue,
             rolledRank: effectiveRank,  // Store the rank tier it rolled at
-            equipped: false
+            equipped: shouldAutoEquip  // Auto-equip if slots available
         )
         
         // Add to inventory and update last drop date
@@ -153,7 +158,7 @@ extension SupabaseManager {
     // MARK: - Private Helpers
     
     /// Roll stat value based on rank ranges from config
-    private func rollStatValue(config: PortalItemConfig, rank: String) -> Int {
+    func rollStatValue(config: PortalItemConfig, rank: String) -> Int {
         let (min, max): (Int, Int) = {
             switch rank {
             case "E": return (config.rankEMin, config.rankEMax)
@@ -169,7 +174,7 @@ extension SupabaseManager {
     }
     
     /// Get next rank in progression
-    private func getNextRank(_ rank: String) -> String {
+    func getNextRank(_ rank: String) -> String {
         switch rank {
         case "E": return "D"
         case "D": return "C"
@@ -251,6 +256,74 @@ extension SupabaseManager {
     func getEquippedItemCount(userId: UUID) async throws -> Int {
         let inventory = try await fetchOrCreateInventory(userId: userId)
         return inventory.items.filter { $0.equipped }.count
+    }
+}
+
+// MARK: - Portal Boss Item Drops
+
+extension SupabaseManager {
+    
+    /// Drop random item for user after defeating a portal boss
+    /// This is separate from daily drops - no eligibility check needed
+    /// - Parameters:
+    ///   - userId: The user's UUID
+    ///   - bossRank: The boss's rank ("E", "D", "C", "B", "A", "S")
+    /// - Returns: PortalItem if dropped successfully, nil if error
+    func dropPortalBossItem(userId: UUID, bossRank: String) async throws -> PortalItem? {
+        // Fetch all item configs
+        let configs = try await fetchPortalItemConfigs()
+        guard !configs.isEmpty else { return nil }
+        
+        // Randomly select one item
+        guard let selectedConfig = configs.randomElement() else { return nil }
+        
+        // Determine rarity tier (70/25/5) - based on boss rank (boss rank is minimum)
+        let rarityRoll = Int.random(in: 1...100)
+        let effectiveRank: String
+        if rarityRoll <= 70 {
+            effectiveRank = bossRank // 70% same rank as boss (minimum)
+        } else if rarityRoll <= 95 {
+            effectiveRank = getNextRank(bossRank) // 25% +1 rank from boss
+        } else {
+            effectiveRank = getNextRank(getNextRank(bossRank)) // 5% +2 ranks from boss
+        }
+        
+        // Roll stat value based on effective rank
+        let statValue = rollStatValue(config: selectedConfig, rank: effectiveRank)
+        
+        // Check if there are available equipment slots (max 8)
+        let equippedCount = try await getEquippedItemCount(userId: userId)
+        let shouldAutoEquip = equippedCount < 8
+        
+        // Create new item (store rolled rank for quality display)
+        // Auto-equip if there are available slots
+        let newItem = PortalItem(
+            id: UUID(),
+            name: selectedConfig.name,
+            iconUrl: selectedConfig.iconUrl,
+            statType: selectedConfig.statType,
+            statValue: statValue,
+            rolledRank: effectiveRank,  // Store the rank tier it rolled at
+            equipped: shouldAutoEquip  // Auto-equip if slots available
+        )
+        
+        // Add to inventory (don't update lastDropDate - that's for daily drops only)
+        var inventory = try await fetchOrCreateInventory(userId: userId)
+        inventory.items.append(newItem)
+        
+        struct InventoryUpdate: Codable {
+            let items: [PortalItem]
+        }
+        
+        let update = InventoryUpdate(items: inventory.items)
+        
+        try await client
+            .from("portal_inventory")
+            .update(update)
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+        
+        return newItem
     }
 }
 

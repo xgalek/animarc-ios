@@ -20,6 +20,7 @@ struct PortalRaidResultView: View {
     
     @State private var contentAppeared = false
     @State private var showRewards = false
+    @State private var showItemDropModal = false
     
     private var isBossDefeated: Bool {
         result.bossDefeated
@@ -101,12 +102,29 @@ struct PortalRaidResultView: View {
             .padding(.horizontal, 20)
         }
         .navigationBarHidden(true)
+        .sheet(isPresented: $showItemDropModal) {
+            if let item = progressManager.pendingPortalBossItemDrop {
+                PortalBossItemDropModalView(item: item) {
+                    // On dismiss, clear item drop
+                    progressManager.pendingPortalBossItemDrop = nil
+                    showItemDropModal = false
+                }
+            }
+        }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 contentAppeared = true
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 showRewards = true
+            }
+            
+            // Check for portal boss item drop when view appears
+            if isBossDefeated && progressManager.pendingPortalBossItemDrop != nil {
+                // Small delay to let rewards animation finish first
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    showItemDropModal = true
+                }
             }
             
             // Haptic feedback
@@ -449,50 +467,292 @@ struct PortalRaidResultView: View {
     
     private var actionButtons: some View {
         VStack(spacing: 12) {
-            // Attack Again button
-            Button(action: {
-                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                impactFeedback.impactOccurred()
-                onAttackAgain()
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 18, weight: .bold))
-                    Text(isBossDefeated ? "NEXT BOSS" : "ATTACK AGAIN")
-                        .font(.system(size: 18, weight: .bold))
-                        .tracking(0.5)
-                }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(
-                    LinearGradient(
-                        colors: [Color(hex: "#f49d25"), Color(hex: "#EA580C")],
-                        startPoint: .leading,
-                        endPoint: .trailing
+            if isBossDefeated {
+                // When boss is defeated: Only Return Home button with orange background
+                Button(action: {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
+                    onReturnHome()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "house.fill")
+                            .font(.system(size: 18, weight: .bold))
+                        Text("Return Home")
+                            .font(.system(size: 18, weight: .bold))
+                            .tracking(0.5)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        LinearGradient(
+                            colors: [Color(hex: "#f49d25"), Color(hex: "#EA580C")],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     )
-                )
-                .cornerRadius(16)
-                .shadow(color: Color(hex: "#B4640A"), radius: 0, x: 0, y: 4)
-            }
-            .buttonStyle(BattleButtonStyle())
-            
-            // Return Home button
-            Button(action: {
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
-                onReturnHome()
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "house.fill")
-                        .font(.system(size: 16))
-                    Text("Return Home")
-                        .font(.system(size: 14, weight: .semibold))
+                    .cornerRadius(16)
+                    .shadow(color: Color(hex: "#B4640A"), radius: 0, x: 0, y: 4)
                 }
-                .foregroundColor(.white.opacity(0.6))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color.clear)
+                .buttonStyle(BattleButtonStyle())
+            } else {
+                // When boss is NOT defeated: Attack Again button + Return Home button
+                // Attack Again button
+                Button(action: {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
+                    onAttackAgain()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 18, weight: .bold))
+                        Text("ATTACK AGAIN")
+                            .font(.system(size: 18, weight: .bold))
+                            .tracking(0.5)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        LinearGradient(
+                            colors: [Color(hex: "#f49d25"), Color(hex: "#EA580C")],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(16)
+                    .shadow(color: Color(hex: "#B4640A"), radius: 0, x: 0, y: 4)
+                }
+                .buttonStyle(BattleButtonStyle())
+                
+                // Return Home button
+                Button(action: {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                    impactFeedback.impactOccurred()
+                    onReturnHome()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "house.fill")
+                            .font(.system(size: 16))
+                        Text("Return Home")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(.white.opacity(0.6))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.clear)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Battle Button Style
+
+struct BattleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .offset(y: configuration.isPressed ? 4 : 0)
+            .shadow(
+                color: Color(hex: "#B4640A"),
+                radius: 0,
+                x: 0,
+                y: configuration.isPressed ? 0 : 4
+            )
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Portal Boss Item Drop Modal (separate from daily drop modal)
+
+struct PortalBossItemDropModalView: View {
+    let item: PortalItem
+    let onDismiss: () -> Void
+    
+    // Animation state variables (same as ItemDropModalView)
+    @State private var backgroundOpacity: Double = 0
+    @State private var cardScale: CGFloat = 0.9
+    @State private var borderOpacity: Double = 0
+    @State private var itemScale: CGFloat = 0.8
+    @State private var contentOpacity: Double = 0
+    @State private var showConfetti: Bool = false
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // Background: Semi-transparent black overlay
+                Color.black.opacity(backgroundOpacity)
+                    .ignoresSafeArea()
+                
+                // Glassmorphic card container
+                VStack(spacing: 16) {
+                    // Title - Updated for portal cleared item
+                    Text("PORTAL CLEARED! 🎁")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(.white)
+                        .shadow(color: Color.black.opacity(0.5), radius: 8, x: 0, y: 2)
+                        .opacity(contentOpacity)
+                    
+                    // Subtitle
+                    Text("Boss Defeated Reward")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white.opacity(0.8))
+                        .opacity(contentOpacity)
+                    
+                    // Rank badge
+                    Text("\(item.rolledRank)-RANK")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(item.rankColor)
+                        .cornerRadius(10)
+                        .shadow(color: item.rankColor.opacity(0.5), radius: 8, x: 0, y: 0)
+                        .opacity(contentOpacity)
+                    
+                    // Item icon (separate for pop animation)
+                    AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .tint(.white)
+                                .scaleEffect(1.5)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 100, height: 100)
+                                .shadow(color: item.rankColor.opacity(0.6), radius: 20, x: 0, y: 0)
+                        case .failure:
+                            Image(systemName: "gift.fill")
+                                .font(.system(size: 80))
+                                .foregroundColor(.white.opacity(0.8))
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    .scaleEffect(itemScale)
+                    
+                    // Item name
+                    Text(item.name)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+                        .opacity(contentOpacity)
+                    
+                    // Stat bonus
+                    Text("+\(item.statValue) \(item.statType)")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(item.rankColor.opacity(0.3))
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(item.rankColor.opacity(0.5), lineWidth: 1)
+                        )
+                        .opacity(contentOpacity)
+                    
+                    // Collect button
+                    Button(action: onDismiss) {
+                        Text("Collect")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(item.rankColor)
+                            .cornerRadius(25)
+                            .shadow(color: item.rankColor.opacity(0.6), radius: 15, x: 0, y: 5)
+                    }
+                    .opacity(contentOpacity)
+                }
+                .padding(.top, 30)
+                .padding(.bottom, 30)
+                .padding(.horizontal, 30)
+                .scaleEffect(cardScale)
+                .background(
+                    // Glassmorphic background
+                    ZStack {
+                        // Dark semi-transparent background
+                        Color(hex: "#14141E")
+                            .opacity(0.85)
+                        
+                        // Frosted glass effect
+                        Color.white.opacity(0.02)
+                    }
+                )
+                .background(.ultraThinMaterial)
+                .cornerRadius(28)
+                .overlay(
+                    // Rank-colored border
+                    RoundedRectangle(cornerRadius: 28)
+                        .stroke(item.rankColor.opacity(borderOpacity), lineWidth: 2.5)
+                )
+                .shadow(color: item.rankColor.opacity(0.4 * borderOpacity), radius: 25, x: 0, y: 10)
+                .shadow(color: Color.black.opacity(0.3), radius: 30, x: 0, y: 15)
+                .padding(.horizontal, 20)
+                
+                // Sparkle rain overlay - ON TOP of card
+                if showConfetti {
+                    SparkleRainView(
+                        primaryColor: item.rankColor,
+                        particleCount: 50
+                    )
+                    .allowsHitTesting(false)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(.clear)
+        .onAppear {
+            startAnimationSequence()
+        }
+    }
+    
+    private func startAnimationSequence() {
+        // Same animation sequence as ItemDropModalView
+        // Phase 1: Modal Fade In (0.3s)
+        withAnimation(.easeInOut(duration: 0.3)) {
+            backgroundOpacity = 0.45
+        }
+        
+        // Phase 2: Card Entrance (0.5s, starts at 0.3s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                cardScale = 1.0
+                borderOpacity = 1.0
+            }
+        }
+        
+        // Phase 3: Item Pop (0.4s, starts at 0.5s) + Confetti (starts at 0.6s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Item pop animation with subtle bounce
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                itemScale = 1.1
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    itemScale = 1.0
+                }
+            }
+            
+            // Start confetti slightly after item pop
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                showConfetti = true
+            }
+        }
+        
+        // Phase 5: Content Fade (0.3s, starts at 0.8s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            withAnimation(.easeIn(duration: 0.3)) {
+                contentOpacity = 1.0
             }
         }
     }

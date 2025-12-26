@@ -73,13 +73,13 @@ extension PortalItem {
     /// Get color for item's rolled rank (matches rank progression colors)
     var rankColor: Color {
         switch rolledRank {
-        case "E": return Color(hex: "#9CA3AF")  // Gray
+        case "E": return Color(hex: "#4A90A4")  // Teal/Cyan
         case "D": return Color(hex: "#3B82F6")  // Blue
         case "C": return Color(hex: "#A855F7")  // Purple
         case "B": return Color(hex: "#EF4444")  // Red
         case "A": return Color(hex: "#FBBF24")  // Amber
         case "S": return Color(hex: "#FFD700")  // Gold
-        default: return Color(hex: "#9CA3AF")
+        default: return Color(hex: "#4A90A4")
         }
     }
     

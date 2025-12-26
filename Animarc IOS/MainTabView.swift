@@ -52,10 +52,10 @@ struct MainTabView: View {
             .foregroundColor: UIColor.white
         ]
         
-        // Unselected item color (muted gray)
-        appearance.stackedLayoutAppearance.normal.iconColor = UIColor(hex: "#9CA3AF")
+        // Unselected item color (darker gray for better contrast)
+        appearance.stackedLayoutAppearance.normal.iconColor = UIColor(hex: "#6B7280")
         appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
-            .foregroundColor: UIColor(hex: "#9CA3AF")
+            .foregroundColor: UIColor(hex: "#6B7280")
         ]
         
         UITabBar.appearance().standardAppearance = appearance

@@ -96,5 +96,34 @@ final class RankService {
         // This could be extended to use database-loaded ranks
         print("Loaded \(ranks.count) ranks from database")
     }
+    
+    /// Get a deterministic boss level within a rank's range based on a seed value
+    /// - Parameters:
+    ///   - rankCode: The rank code (E, D, C, etc.)
+    ///   - seed: A seed value (e.g., boss ID hash) to make it deterministic
+    /// - Returns: A level within the rank's range
+    static func getBossLevelForRank(rankCode: String, seed: Int) -> Int {
+        guard let rankInfo = getRankByCode(rankCode) else {
+            return 1
+        }
+        
+        // Find the next rank to determine the upper bound
+        guard let currentIndex = allRanks.firstIndex(where: { $0.code == rankCode }),
+              currentIndex < allRanks.count - 1 else {
+            // Highest rank (SSS), use a reasonable max (e.g., 200)
+            let minLevel = rankInfo.minLevel
+            let maxLevel = 200
+            let range = maxLevel - minLevel + 1
+            return minLevel + (abs(seed) % range)
+        }
+        
+        let nextRank = allRanks[currentIndex + 1]
+        let minLevel = rankInfo.minLevel
+        let maxLevel = nextRank.minLevel - 1 // One less than next rank's minLevel
+        let range = maxLevel - minLevel + 1
+        
+        // Use seed to deterministically pick a level within the range
+        return minLevel + (abs(seed) % range)
+    }
 }
 

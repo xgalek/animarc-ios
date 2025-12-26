@@ -13,6 +13,7 @@ struct CharacterView: View {
     @State private var showPortalRaid = false
     @State private var selectedPortalItem: PortalItem?
     @State private var showStatAllocation = false
+    @State private var showLevelUpModal = false
     
     // Stat allocation system
     @State private var availablePoints: Int = 0
@@ -141,29 +142,44 @@ struct CharacterView: View {
         Group {
             if let item = item {
                 // Filled slot with item
-                AsyncImage(url: URL(string: item.iconUrl)) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .tint(.white)
-                            .frame(width: 70, height: 70)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 70, height: 70)
-                            .padding(6)
-                    case .failure:
-                        Image(systemName: "questionmark.circle")
-                            .font(.system(size: 36))
-                            .foregroundColor(Color(hex: "#9CA3AF"))
-                            .frame(width: 70, height: 70)
-                    @unknown default:
-                        EmptyView()
+                ZStack {
+                    // Slot background
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(hex: "#243447"))
+                        .frame(width: 70, height: 70)
+                    
+                    // Glow effect behind the actual item image based on rank
+                    Circle()
+                        .fill(item.rankColor.opacity(0.4))
+                        .frame(width: 56, height: 56)
+                        .blur(radius: 10)
+                        .shadow(color: item.rankColor.opacity(0.7), radius: 12, x: 0, y: 0)
+                        .shadow(color: item.rankColor.opacity(0.5), radius: 8, x: 0, y: 0)
+                    
+                    // Item image (smaller size)
+                    AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .tint(.white)
+                                .frame(width: 50, height: 50)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 50, height: 50)
+                        case .failure:
+                            Image(systemName: "questionmark.circle")
+                                .font(.system(size: 28))
+                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                .frame(width: 50, height: 50)
+                        @unknown default:
+                            EmptyView()
+                        }
                     }
+                    .frame(width: 50, height: 50)
                 }
                 .frame(width: 70, height: 70)
-                .background(Color(hex: "#243447"))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(item.rankColor, lineWidth: 2)
@@ -334,53 +350,14 @@ struct CharacterView: View {
     
     private var levelRankSection: some View {
         HStack(spacing: 8) {
-            // XP Progress Bar - thicker with level on left and XP on right
-            GeometryReader { geometry in
-                let progressPercent = progressManager.levelProgress.progressPercent
-                let progressWidth = geometry.size.width * (progressPercent / 100.0)
-                
-                ZStack(alignment: .leading) {
-                    // Background
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(hex: "#9CA3AF").opacity(0.3))
-                    
-                    // Progress fill - orange
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(hex: "#FF9500"))
-                        .frame(width: max(progressWidth, 0))
-                    
-                    // Level text on left and XP text on right
-                    HStack {
-                        // Level label on the left
-                        if progressManager.isLoading {
-                            Text("LV.1")
-                                .font(.caption)
-                                .foregroundColor(.white)
-                                .pulsing()
-                        } else {
-                            Text("LV.\(progressManager.currentLevel)")
-                                .font(.caption)
-                                .foregroundColor(.white)
-                        }
-                        
-                        Spacer()
-                        
-                        // XP text on the right
-                        if progressManager.isLoading {
-                            Text("0/0xp")
-                                .font(.caption)
-                                .foregroundColor(.white)
-                                .pulsing()
-                        } else {
-                            let levelProgress = progressManager.levelProgress
-                            Text("\(levelProgress.xpInCurrentLevel)/\(levelProgress.xpNeededForNext)xp")
-                                .font(.caption)
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                }
-            }
+            // XP Progress Bar - animated with micro-interactions
+            AnimatedXPProgressBar(
+                levelProgress: progressManager.levelProgress,
+                isLoading: progressManager.isLoading,
+                previousXP: progressManager.previousTotalXP,
+                previousLevel: progressManager.previousLevel,
+                shouldAnimate: progressManager.shouldAnimateXPChange
+            )
             .frame(height: 24)
             
             // Rank badge - minimalistic
@@ -390,7 +367,7 @@ struct CharacterView: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(Color(hex: "#9CA3AF"))
+                    .background(Color(hex: "#4A90A4"))
                     .cornerRadius(8)
                     .pulsing()
             } else {
@@ -547,10 +524,69 @@ struct CharacterView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
+            .onChange(of: showInventoryPopup) { _, isShowing in
+                // Reload inventory when opening inventory popup to show latest items
+                if isShowing {
+                    Task {
+                        await loadInventory()
+                    }
+                }
+            }
             .sheet(isPresented: $showPortalRaid) {
                 PortalRaidView()
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showLevelUpModal) {
+                LevelUpModalView(
+                    oldLevel: progressManager.pendingLevelUp?.oldLevel ?? 1,
+                    newLevel: progressManager.pendingLevelUp?.newLevel ?? 1,
+                    rankUp: progressManager.pendingRankUp
+                ) {
+                    // On dismiss, clear level up
+                    progressManager.pendingLevelUp = nil
+                    progressManager.pendingRankUp = nil
+                    showLevelUpModal = false
+                }
+            }
+            .onChange(of: showPortalRaid) { _, isShowing in
+                // When PortalRaidView dismisses (user clicked "Return Home"), check for pending level ups and refresh inventory
+                if !isShowing {
+                    // Reload inventory to show any new items from defeated bosses
+                    Task {
+                        await loadInventory()
+                    }
+                    
+                    // Small delay to ensure PortalRaidResultView has fully dismissed
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        // Only show if no other modals are showing
+                        if !showStatAllocation && !showInventoryPopup && progressManager.pendingLevelUp != nil {
+                            showLevelUpModal = true
+                        }
+                    }
+                }
+            }
+            .onAppear {
+                // Check for pending level ups when view appears (e.g., navigating from HomeView)
+                if !showStatAllocation && !showInventoryPopup && !showPortalRaid && progressManager.pendingLevelUp != nil {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        if !showStatAllocation && !showInventoryPopup && !showPortalRaid {
+                            showLevelUpModal = true
+                        }
+                    }
+                }
+            }
+            .onChange(of: progressManager.userProgress?.currentLevel) { _, newLevel in
+                // Check for pending level up when level changes (detects level-ups while on CharacterView)
+                if newLevel != nil && !showPortalRaid && !showStatAllocation && !showInventoryPopup {
+                    if progressManager.pendingLevelUp != nil {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            if !showPortalRaid && !showStatAllocation && !showInventoryPopup {
+                                showLevelUpModal = true
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -753,11 +789,15 @@ struct StatAllocationSheet: View {
                 Divider()
                     .background(Color(hex: "#9CA3AF").opacity(0.3))
                 
-                // Available Points Display
-                Text("Available Points: \(tempAvailablePoints)")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
+                // Available Points Display with animation
+                HStack(spacing: 4) {
+                    Text("Available Points:")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white)
+                    AnimatedNumberText(value: tempAvailablePoints, baseColor: Color(hex: "#FBBF24"))
+                        .font(.system(size: 16, weight: .bold))
+                }
+                .padding(.horizontal, 20)
                 
                 Divider()
                     .background(Color(hex: "#9CA3AF").opacity(0.3))
@@ -848,6 +888,8 @@ struct StatRowWithControls: View {
     @Binding var availablePoints: Int
     let step: Int
     
+    @State private var previousValue: Int
+    
     init(icon: String, label: String, value: Binding<Int>, originalValue: Int, availablePoints: Binding<Int>, step: Int = 1) {
         self.icon = icon
         self.label = label
@@ -855,6 +897,7 @@ struct StatRowWithControls: View {
         self.originalValue = originalValue
         self._availablePoints = availablePoints
         self.step = step
+        _previousValue = State(initialValue: value.wrappedValue)
     }
     
     var canDecrement: Bool {
@@ -867,15 +910,28 @@ struct StatRowWithControls: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            Text("\(icon) \(label): \(value)")
-                .font(.system(size: 16))
-                .foregroundColor(.white)
+            HStack(spacing: 4) {
+                Text(icon)
+                    .font(.system(size: 16))
+                Text("\(label):")
+                    .font(.system(size: 16))
+                    .foregroundColor(.white)
+                
+                // Animated number display
+                AnimatedNumberText(value: value)
+                    .font(.system(size: 16, weight: .semibold))
+            }
             
             Spacer()
             
             // Decrement button
             Button(action: {
                 if canDecrement {
+                    // Haptic feedback
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                    impactFeedback.impactOccurred()
+                    
+                    previousValue = value
                     value -= step
                     availablePoints += 1
                 }
@@ -893,10 +949,16 @@ struct StatRowWithControls: View {
             }
             .disabled(!canDecrement)
             .opacity(canDecrement ? 1.0 : 0.5)
+            .buttonStyle(StatButtonStyle())
             
             // Increment button
             Button(action: {
                 if canIncrement {
+                    // Haptic feedback
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                    impactFeedback.impactOccurred()
+                    
+                    previousValue = value
                     value += step
                     availablePoints -= 1
                 }
@@ -914,7 +976,17 @@ struct StatRowWithControls: View {
             }
             .disabled(!canIncrement)
             .opacity(canIncrement ? 1.0 : 0.5)
+            .buttonStyle(StatButtonStyle())
         }
+    }
+}
+
+// MARK: - Stat Button Style (with press animation)
+struct StatButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.85 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
@@ -1200,13 +1272,13 @@ struct InventoryPopupView: View {
     
     private func getRankColor(_ rank: String) -> Color {
         switch rank {
-        case "E": return Color(hex: "#9CA3AF")
+        case "E": return Color(hex: "#4A90A4")
         case "D": return Color(hex: "#3B82F6")
         case "C": return Color(hex: "#A855F7")
         case "B": return Color(hex: "#EF4444")
         case "A": return Color(hex: "#FBBF24")
         case "S": return Color(hex: "#FFD700")
-        default: return Color(hex: "#9CA3AF")
+        default: return Color(hex: "#4A90A4")
         }
     }
 }

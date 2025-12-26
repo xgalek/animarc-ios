@@ -39,7 +39,7 @@ struct FocusSessionView: View {
     var body: some View {
         ZStack {
             // Parallax Background
-            LottiePlayerView(name: "Parallax castle 1 json", loopMode: .loop, speed: 0.7)
+            LottiePlayerView(name: "Parallax castle 1 json", loopMode: .loop, speed: 0.5)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
