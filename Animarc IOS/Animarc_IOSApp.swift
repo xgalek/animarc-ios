@@ -12,6 +12,7 @@ import UIKit
 struct Animarc_IOSApp: App {
     @StateObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var progressManager = UserProgressManager.shared
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
     
     var body: some Scene {
@@ -32,18 +33,30 @@ struct Animarc_IOSApp: App {
                                 .tint(.white)
                         }
                     }
-                } else if supabaseManager.isAuthenticated {
-                    MainTabView()
-                        .environmentObject(progressManager)
-                        .task {
-                            // Load user progress after authentication
-                            await progressManager.loadProgress()
-                        }
+                } else if hasCompletedOnboarding {
+                    // Onboarding completed - check authentication
+                    if supabaseManager.isAuthenticated {
+                        MainTabView()
+                            .environmentObject(progressManager)
+                            .task {
+                                // Load user progress after authentication
+                                await progressManager.loadProgress()
+                            }
+                    } else {
+                        AuthView(isAuthenticated: $supabaseManager.isAuthenticated)
+                    }
                 } else {
-                    AuthView(isAuthenticated: $supabaseManager.isAuthenticated)
+                    // Show onboarding first (before authentication) - PRIORITY
+                    OnboardingView()
+                        .environmentObject(progressManager)
                 }
             }
             .task {
+                // DEBUG: Temporarily reset onboarding for testing
+                // TODO: Remove these lines after testing onboarding flow
+                UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
+                hasCompletedOnboarding = false
+                
                 await supabaseManager.checkExistingSession()
                 // Ensure app blocking is in a clean state on launch
                 // Blocks will be applied when user starts a focus session

@@ -18,3 +18,4 @@ SET
   last_attempt_reset = NOW()
 WHERE portal_attempts IS NULL;
 
+

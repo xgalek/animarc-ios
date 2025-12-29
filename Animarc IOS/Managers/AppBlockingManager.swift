@@ -182,42 +182,32 @@ final class AppBlockingManager: ObservableObject {
         print("   📋 Selected applications count: \(selectedApplications.count)")
         print("   📋 Selected activity category tokens count: \(selectedActivity.categoryTokens.count)")
         
-        // Extract category tokens and application tokens from the selected activity
-        let categoryTokens = selectedActivity.categoryTokens
+        // Extract application tokens from the selected activity
+        // These are the apps the user wants to ALLOW during focus
         let applicationTokens = selectedActivity.applicationTokens
         
-        // Block all categories
-        managedSettingsStore.shield.applicationCategories = ShieldSettings.ActivityCategoryPolicy.all()
-        print("   ✅ SET shield.applicationCategories = .all()")
-        
         if !applicationTokens.isEmpty {
-            // User has selected specific apps to allow
-            // Try using applications property - this may work as an exception to category blocking
-            // Note: This is experimental - applications is typically a blocklist, but when combined
-            // with .all() categories, it might work as an allowlist
-            managedSettingsStore.shield.applications = Set(applicationTokens)
-            print("   ✅ SET shield.applications = \(applicationTokens.count) apps (experimental allowlist)")
-            print("   ⚠️ Testing if applications property works as exception to category blocking")
+            // User has selected apps to allow - use .all(except:) to block all categories
+            // EXCEPT the ones containing the selected apps
+            // This allows the selected apps while blocking everything else
+            managedSettingsStore.shield.applicationCategories = ShieldSettings.ActivityCategoryPolicy.all(except: Set(applicationTokens))
+            print("   ✅ SET shield.applicationCategories = .all(except: \(applicationTokens.count) apps)")
+            print("   ℹ️ Allowing selected apps by excluding their categories from blocking")
         } else {
-            // No allowlist - clear applications property
-            managedSettingsStore.shield.applications = nil
-            print("   ✅ SET shield.applications = nil")
-        }
-        
-        if !categoryTokens.isEmpty || !applicationTokens.isEmpty {
-            print("   ℹ️ Allowlist configured: \(applicationTokens.count) apps, \(categoryTokens.count) categories")
-            print("   ℹ️ Testing if selected apps are accessible despite category blocking")
-        } else {
+            // No allowlist - block everything (same as before)
+            managedSettingsStore.shield.applicationCategories = ShieldSettings.ActivityCategoryPolicy.all()
+            print("   ✅ SET shield.applicationCategories = .all()")
             print("   ℹ️ Blocking all apps (Phone, Messages, FaceTime remain accessible)")
         }
+        
+        // Clear applications property - we're using category-based blocking only
+        managedSettingsStore.shield.applications = nil
         
         print("   📊 AFTER - shield.applicationCategories: \(String(describing: managedSettingsStore.shield.applicationCategories))")
         print("   📊 AFTER - shield.applications: \(String(describing: managedSettingsStore.shield.applications))")
         
-        if !categoryTokens.isEmpty {
-            print("   ℹ️ Allowing apps in \(categoryTokens.count) categories (includes selected apps)")
-        } else {
-            print("   ℹ️ Blocking all apps (Phone, Messages, FaceTime remain accessible)")
+        if !applicationTokens.isEmpty {
+            print("   ✅ Allowlist active: \(applicationTokens.count) apps will be accessible")
         }
     }
     

@@ -121,3 +121,4 @@ Edit `PortalService.calculateBossRewards()` to change XP/Gold per rank.
 - Boss progress is stored in `portal_progress` table
 - Each user can have progress on multiple bosses simultaneously
 
+

@@ -64,3 +64,4 @@ struct RaidAttemptResult {
     let userSurvived: Bool
 }
 
+

@@ -9,3 +9,4 @@ WHERE
     portal_attempts IS NULL 
     OR last_attempt_reset IS NULL;
 
+

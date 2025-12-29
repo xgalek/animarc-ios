@@ -71,3 +71,4 @@ extension AppBlockingSettings {
         UserDefaults.standard.removeObject(forKey: userDefaultsKey)
     }
 }
+
