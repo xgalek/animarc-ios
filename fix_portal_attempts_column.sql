@@ -19,3 +19,5 @@ SET
 WHERE portal_attempts IS NULL;
 
 
+
+

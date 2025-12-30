@@ -13,6 +13,7 @@ struct HomeView: View {
     @StateObject private var appBlockingManager = AppBlockingManager.shared
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var quoteManager = QuoteManager.shared
+    @StateObject private var revenueCat = RevenueCatManager.shared
     @State private var navigationPath = NavigationPath()
     @State private var showLevelUpModal = false
     @State private var showRankUpModal = false
@@ -26,15 +27,13 @@ struct HomeView: View {
     @State private var currentQuote = ""
     @State private var contentAppeared = false
     @State private var pendingNavigation: String? = nil
-    @State private var showNameEntryPopup = false
-    @State private var hasCheckedNameEntry = false
+    @State private var showPaywall = false
     
     // Portal transition binding - controlled by MainTabView
     @Binding var showPortalTransition: Bool
     let onPortalTransitionComplete: (@escaping () -> Void) -> Void
     
     private let streakCelebrationKey = "lastStreakCelebrationShownDate"
-    private let hasSeenNameEntryKey = "hasSeenNameEntryModal"
     
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -211,9 +210,6 @@ struct HomeView: View {
                 // Load current quote
                 currentQuote = quoteManager.getCurrentQuote()
                 
-                // Reset check flag so we can check again if needed
-                hasCheckedNameEntry = false
-                
                 // Trigger smooth fade-in animation for all elements
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     contentAppeared = true
@@ -225,22 +221,6 @@ struct HomeView: View {
                 checkAndShowStreakCelebration()
                 // Refresh authorization status
                 appBlockingManager.refreshAuthorizationStatus()
-            }
-            .onChange(of: progressManager.userProgress) { _, newProgress in
-                // Check name entry modal when progress loads or updates
-                checkNameEntryModal()
-            }
-            .task {
-                // Wait for progress to load, then check
-                if progressManager.isLoading {
-                    // Wait for loading to complete
-                    while progressManager.isLoading {
-                        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
-                    }
-                }
-                // Check after a small delay to ensure progress is set
-                try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
-                checkNameEntryModal()
             }
             .sheet(isPresented: $showPermissionModal) {
                 AppBlockingPermissionModal(
@@ -327,61 +307,13 @@ struct HomeView: View {
                     onPortalTransitionComplete: onPortalTransitionComplete
                 )
             }
-            .fullScreenCover(isPresented: $showNameEntryPopup) {
-                DisplayNameEntryView(
-                    onDismiss: {
-                        showNameEntryPopup = false
-                    },
-                    onSave: {
-                        showNameEntryPopup = false
-                    }
-                )
-                .environmentObject(progressManager)
-                .presentationBackground(.clear)
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
             }
         }
     }
     
     // MARK: - Helper Methods
-    
-    private func checkNameEntryModal() {
-        // Only check once per view lifecycle
-        guard !hasCheckedNameEntry else { return }
-        
-        // Wait for progress to be loaded (not nil and not loading)
-        guard !progressManager.isLoading, progressManager.userProgress != nil else {
-            return // Will check again when progress loads
-        }
-        
-        hasCheckedNameEntry = true
-        
-        // PRIMARY CHECK: If user has already seen the modal, NEVER show it again
-        let hasSeenNameEntry = UserDefaults.standard.bool(forKey: hasSeenNameEntryKey)
-        if hasSeenNameEntry {
-            return // User has seen it before, don't show again
-        }
-        
-        // SECONDARY CHECK: If user already has a name, mark modal as seen and don't show
-        let displayName = progressManager.userProgress?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let displayNameIsEmpty = displayName == nil || displayName?.isEmpty == true
-        
-        if !displayNameIsEmpty {
-            // User has a name but flag wasn't set - set it now
-            UserDefaults.standard.set(true, forKey: hasSeenNameEntryKey)
-            UserDefaults.standard.synchronize()
-            return // Don't show modal if name exists
-        }
-        
-        // FINAL CASE: User hasn't seen modal AND name is empty - show it ONCE
-        // Mark as seen IMMEDIATELY to prevent showing again
-        UserDefaults.standard.set(true, forKey: hasSeenNameEntryKey)
-        UserDefaults.standard.synchronize() // Force immediate save
-        
-        // Small delay to ensure view is fully loaded
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            showNameEntryPopup = true
-        }
-    }
     
     private func handleFocusButtonTap() {
         // Check if permission has been requested
@@ -1510,6 +1442,8 @@ struct FocusConfigurationModal: View {
     @State private var selectedTag: String? = nil
     @State private var focusSettings = FocusSessionSettings.load()
     @StateObject private var appBlockingManager = AppBlockingManager.shared
+    @StateObject private var revenueCat = RevenueCatManager.shared
+    @State private var showPaywall = false
     // Note: FamilyActivityPicker kept commented out in FocusConfigurationModal
     // Users configure allowed apps in Settings/Profile instead
     @Environment(\.dismiss) var dismiss
@@ -1600,7 +1534,13 @@ struct FocusConfigurationModal: View {
                             Button(action: {
                                 let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                                 impactFeedback.impactOccurred()
-                                focusSettings.mode = .timer
+                                
+                                // Check if user is Pro, if not show paywall
+                                if !revenueCat.isPro {
+                                    showPaywall = true
+                                } else {
+                                    focusSettings.mode = .timer
+                                }
                             }) {
                                 HStack(spacing: 6) {
                                     Image(systemName: "timer")
@@ -1619,7 +1559,13 @@ struct FocusConfigurationModal: View {
                             Button(action: {
                                 let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                                 impactFeedback.impactOccurred()
-                                focusSettings.mode = .pomodoro
+                                
+                                // Check if user is Pro, if not show paywall
+                                if !revenueCat.isPro {
+                                    showPaywall = true
+                                } else {
+                                    focusSettings.mode = .pomodoro
+                                }
                             }) {
                                 HStack(spacing: 6) {
                                     Image(systemName: "circle.fill")
@@ -1755,6 +1701,9 @@ struct FocusConfigurationModal: View {
         }
         .presentationDetents([.large, .medium])
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
         // Note: FamilyActivityPicker kept commented out here - users configure allowed apps in Settings/Profile instead
         /*
         .familyActivityPicker(isPresented: $showPicker, selection: $selection)

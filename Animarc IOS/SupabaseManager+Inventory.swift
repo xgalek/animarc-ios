@@ -105,8 +105,9 @@ extension SupabaseManager {
     /// - Parameters:
     ///   - userId: The user's UUID
     ///   - userRank: The user's current rank ("E", "D", "C", "B", "A", "S")
+    ///   - isPro: Whether user has Pro subscription (affects drop rates)
     /// - Returns: PortalItem if dropped successfully, nil if not eligible or error
-    func dropRandomItem(userId: UUID, userRank: String) async throws -> PortalItem? {
+    func dropRandomItem(userId: UUID, userRank: String, isPro: Bool = false) async throws -> PortalItem? {
         // Check eligibility first
         guard try await canDropItem(userId: userId) else {
             return nil // Already dropped today
@@ -119,15 +120,29 @@ extension SupabaseManager {
         // Randomly select one item
         guard let selectedConfig = configs.randomElement() else { return nil }
         
-        // Determine rarity tier (70/25/5)
+        // Determine rarity tier based on subscription status
+        // Free: 70% same rank, 25% +1 rank, 5% +2 ranks
+        // Pro: 50% same rank, 35% +1 rank, 15% +2 ranks (better rates)
         let rarityRoll = Int.random(in: 1...100)
         let effectiveRank: String
-        if rarityRoll <= 70 {
-            effectiveRank = userRank // 70% same rank
-        } else if rarityRoll <= 95 {
-            effectiveRank = getNextRank(userRank) // 25% +1 rank
+        if isPro {
+            // Pro users get better drop rates
+            if rarityRoll <= 50 {
+                effectiveRank = userRank // 50% same rank
+            } else if rarityRoll <= 85 {
+                effectiveRank = getNextRank(userRank) // 35% +1 rank
+            } else {
+                effectiveRank = getNextRank(getNextRank(userRank)) // 15% +2 ranks
+            }
         } else {
-            effectiveRank = getNextRank(getNextRank(userRank)) // 5% +2 ranks
+            // Free users: standard rates
+            if rarityRoll <= 70 {
+                effectiveRank = userRank // 70% same rank
+            } else if rarityRoll <= 95 {
+                effectiveRank = getNextRank(userRank) // 25% +1 rank
+            } else {
+                effectiveRank = getNextRank(getNextRank(userRank)) // 5% +2 ranks
+            }
         }
         
         // Roll stat value based on effective rank
@@ -269,7 +284,7 @@ extension SupabaseManager {
     ///   - userId: The user's UUID
     ///   - bossRank: The boss's rank ("E", "D", "C", "B", "A", "S")
     /// - Returns: PortalItem if dropped successfully, nil if error
-    func dropPortalBossItem(userId: UUID, bossRank: String) async throws -> PortalItem? {
+    func dropPortalBossItem(userId: UUID, bossRank: String, isPro: Bool = false) async throws -> PortalItem? {
         // Fetch all item configs
         let configs = try await fetchPortalItemConfigs()
         guard !configs.isEmpty else { return nil }
@@ -277,15 +292,29 @@ extension SupabaseManager {
         // Randomly select one item
         guard let selectedConfig = configs.randomElement() else { return nil }
         
-        // Determine rarity tier (70/25/5) - based on boss rank (boss rank is minimum)
+        // Determine rarity tier based on subscription status
+        // Free: 70% same rank, 25% +1 rank, 5% +2 ranks
+        // Pro: 50% same rank, 35% +1 rank, 15% +2 ranks (better rates)
         let rarityRoll = Int.random(in: 1...100)
         let effectiveRank: String
-        if rarityRoll <= 70 {
-            effectiveRank = bossRank // 70% same rank as boss (minimum)
-        } else if rarityRoll <= 95 {
-            effectiveRank = getNextRank(bossRank) // 25% +1 rank from boss
+        if isPro {
+            // Pro users get better drop rates
+            if rarityRoll <= 50 {
+                effectiveRank = bossRank // 50% same rank as boss
+            } else if rarityRoll <= 85 {
+                effectiveRank = getNextRank(bossRank) // 35% +1 rank from boss
+            } else {
+                effectiveRank = getNextRank(getNextRank(bossRank)) // 15% +2 ranks from boss
+            }
         } else {
-            effectiveRank = getNextRank(getNextRank(bossRank)) // 5% +2 ranks from boss
+            // Free users: standard rates
+            if rarityRoll <= 70 {
+                effectiveRank = bossRank // 70% same rank as boss (minimum)
+            } else if rarityRoll <= 95 {
+                effectiveRank = getNextRank(bossRank) // 25% +1 rank from boss
+            } else {
+                effectiveRank = getNextRank(getNextRank(bossRank)) // 5% +2 ranks from boss
+            }
         }
         
         // Roll stat value based on effective rank

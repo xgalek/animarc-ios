@@ -113,3 +113,5 @@ final class QuoteManager: ObservableObject {
 
 
 
+
+

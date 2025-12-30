@@ -10,6 +10,7 @@ import SwiftUI
 struct OnboardingView: View {
     @State private var currentPage = 0
     @State private var savedUsername = ""
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @EnvironmentObject var progressManager: UserProgressManager
     
     var body: some View {
@@ -19,8 +20,14 @@ struct OnboardingView: View {
                 .ignoresSafeArea()
             
             TabView(selection: $currentPage) {
-                OnboardingPage1_Welcome(currentPage: $currentPage)
-                    .tag(0)
+                OnboardingPage1_Welcome(
+                    currentPage: $currentPage,
+                    onSkipToAuth: {
+                        // Skip onboarding and mark as completed
+                        hasCompletedOnboarding = true
+                    }
+                )
+                .tag(0)
                 
                 OnboardingPage2_CoreLoop(currentPage: $currentPage)
                     .tag(1)

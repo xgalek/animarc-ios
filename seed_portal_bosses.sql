@@ -71,3 +71,5 @@ INSERT INTO portal_bosses (name, rank, image_name, specialization, stat_health, 
 ('StudyNinja', 'S', 'Opponents/_Stylized Cute Warrior Character (16)', 'Balanced', 1250, 110, 110, 110, 2500);
 
 
+
+

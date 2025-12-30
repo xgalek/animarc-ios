@@ -11,6 +11,7 @@ import FamilyControls
 struct ProfileView: View {
     @EnvironmentObject var progressManager: UserProgressManager
     @StateObject private var appBlockingManager = AppBlockingManager.shared
+    @StateObject private var revenueCat = RevenueCatManager.shared
     @State private var notificationsEnabled = true
     @State private var soundsEnabled = true
     @State private var sessionsToday: [FocusSession] = []
@@ -26,6 +27,8 @@ struct ProfileView: View {
     @State private var isSavingDisplayName = false
     @State private var showDisplayNameError = false
     @State private var displayNameErrorMessage = ""
+    @State private var showCustomerCenter = false
+    @State private var showPaywall = false
     
     var body: some View {
         ZStack {
@@ -141,8 +144,8 @@ struct ProfileView: View {
                                         isEditingDisplayName = true
                                         editedDisplayName = progressManager.userProgress?.displayName ?? ""
                                     }) {
-                                        Image(systemName: "pencil")
-                                            .font(.system(size: 14))
+                                        Image(systemName: "square.and.pencil")
+                                            .font(.system(size: 18, weight: .medium))
                                             .foregroundColor(Color(hex: "#6B46C1"))
                                     }
                                 }
@@ -366,6 +369,146 @@ struct ProfileView: View {
                         }
                         .padding(.top, 8)
                         
+                        // Subscription Section
+                        Text("Subscription")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                        
+                        VStack(spacing: 0) {
+                            if revenueCat.isPro {
+                                // Pro user - show manage subscription
+                                Button(action: {
+                                    showCustomerCenter = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "crown.fill")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(Color(hex: "#FFD700"))
+                                            .frame(width: 24)
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Animarc Pro")
+                                                .font(.body)
+                                                .foregroundColor(.white)
+                                            
+                                            Text("Active")
+                                                .font(.caption)
+                                                .foregroundColor(Color(hex: "#4ADE80"))
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(Color(hex: "#9CA3AF"))
+                                    }
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 16)
+                                }
+                            } else {
+                                // Free user - show upgrade option
+                                Button(action: {
+                                    showPaywall = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "star.fill")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(Color(hex: "#9CA3AF"))
+                                            .frame(width: 24)
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Upgrade to Pro")
+                                                .font(.body)
+                                                .foregroundColor(.white)
+                                            
+                                            Text("Unlock premium features")
+                                                .font(.caption)
+                                                .foregroundColor(Color(hex: "#9CA3AF"))
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(Color(hex: "#9CA3AF"))
+                                    }
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 16)
+                                }
+                                
+                                Divider()
+                                    .background(Color(hex: "#9CA3AF").opacity(0.3))
+                                    .padding(.leading, 60)
+                                
+                                Button(action: {
+                                    showCustomerCenter = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(Color(hex: "#9CA3AF"))
+                                            .frame(width: 24)
+                                        
+                                        Text("Restore Purchases")
+                                            .font(.body)
+                                            .foregroundColor(.white)
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(Color(hex: "#9CA3AF"))
+                                    }
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 16)
+                                }
+                            }
+                        }
+                        .background(Color(hex: "#374151"))
+                        .cornerRadius(15)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        
+                        // Testing Section (for development)
+                        #if DEBUG
+                        Text("Testing")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                        
+                        VStack(spacing: 0) {
+                            Button(action: {
+                                showPaywall = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "creditcard.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(Color(hex: "#FF9500"))
+                                        .frame(width: 24)
+                                    
+                                    Text("Test Subscription")
+                                        .font(.body)
+                                        .foregroundColor(.white)
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(Color(hex: "#9CA3AF"))
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                            }
+                        }
+                        .background(Color(hex: "#374151"))
+                        .cornerRadius(15)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        #endif
+                        
                         // Future buttons placeholder
                         VStack(spacing: 12) {
                             Button(action: {
@@ -479,6 +622,12 @@ struct ProfileView: View {
             }
         } message: {
             Text(displayNameErrorMessage)
+        }
+        .sheet(isPresented: $showCustomerCenter) {
+            CustomerCenterView()
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
     }
     

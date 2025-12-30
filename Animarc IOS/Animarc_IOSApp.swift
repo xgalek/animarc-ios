@@ -12,6 +12,7 @@ import UIKit
 struct Animarc_IOSApp: App {
     @StateObject private var supabaseManager = SupabaseManager.shared
     @StateObject private var progressManager = UserProgressManager.shared
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
     
@@ -33,39 +34,58 @@ struct Animarc_IOSApp: App {
                                 .tint(.white)
                         }
                     }
+                } else if supabaseManager.isAuthenticated {
+                    // User is authenticated - skip onboarding, go directly to MainTabView
+                    MainTabView()
+                        .environmentObject(progressManager)
+                        .task {
+                            // Load user progress after authentication
+                            await progressManager.loadProgress()
+                        }
                 } else if hasCompletedOnboarding {
-                    // Onboarding completed - check authentication
-                    if supabaseManager.isAuthenticated {
-                        MainTabView()
-                            .environmentObject(progressManager)
-                            .task {
-                                // Load user progress after authentication
-                                await progressManager.loadProgress()
-                            }
-                    } else {
-                        AuthView(isAuthenticated: $supabaseManager.isAuthenticated)
-                    }
+                    // Onboarding completed but not authenticated - show AuthView
+                    AuthView(isAuthenticated: $supabaseManager.isAuthenticated)
                 } else {
-                    // Show onboarding first (before authentication) - PRIORITY
+                    // Show onboarding (with "Already have an account" option)
                     OnboardingView()
                         .environmentObject(progressManager)
                 }
             }
             .task {
-                // DEBUG: Temporarily reset onboarding for testing
-                // TODO: Remove these lines after testing onboarding flow
-                UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
-                hasCompletedOnboarding = false
-                
+                // Check for existing session first (this persists via Keychain)
                 await supabaseManager.checkExistingSession()
                 // Ensure app blocking is in a clean state on launch
                 // Blocks will be applied when user starts a focus session
                 AppBlockingManager.shared.stopBlocking()
+                
+                // Identify RevenueCat user with Supabase user ID after auth
+                if supabaseManager.isAuthenticated {
+                    do {
+                        let userId = try await supabaseManager.client.auth.session.user.id.uuidString
+                        try await revenueCatManager.identifyUser(userId: userId)
+                    } catch {
+                        print("RevenueCat identification error: \(error.localizedDescription)")
+                    }
+                }
             }
             .onChange(of: supabaseManager.isAuthenticated) { _, isAuthenticated in
                 if !isAuthenticated {
                     // Clear progress data on sign out
                     progressManager.clearData()
+                    // Logout from RevenueCat when user signs out
+                    Task {
+                        try? await revenueCatManager.logout()
+                    }
+                } else {
+                    // Identify user when authenticated
+                    Task {
+                        do {
+                            let userId = try await supabaseManager.client.auth.session.user.id.uuidString
+                            try await revenueCatManager.identifyUser(userId: userId)
+                        } catch {
+                            print("RevenueCat identification error: \(error.localizedDescription)")
+                        }
+                    }
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in

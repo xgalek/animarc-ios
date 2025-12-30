@@ -12,6 +12,7 @@ struct RewardView: View {
     let sessionDuration: Int  // Duration in seconds
     @Binding var navigationPath: NavigationPath
     @EnvironmentObject var progressManager: UserProgressManager
+    @StateObject private var revenueCat = RevenueCatManager.shared
     
     @State private var sessionReward: SessionReward?
     @State private var isProcessing = true
@@ -243,9 +244,11 @@ struct RewardView: View {
         // Try to drop item (checks eligibility internally) - non-critical
         if let userId = await getCurrentUserId() {
             do {
+                let isPro = await revenueCat.isPro
                 let droppedItem = try await SupabaseManager.shared.dropRandomItem(
                     userId: userId,
-                    userRank: progressManager.currentRank
+                    userRank: progressManager.currentRank,
+                    isPro: isPro
                 )
                 // Store in progressManager for celebration on HomeView
                 progressManager.pendingItemDrop = droppedItem

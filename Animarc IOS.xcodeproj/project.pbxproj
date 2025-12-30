@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		74A687DC2F02D51D001951FE /* ReceiptParser in Frameworks */ = {isa = PBXBuildFile; productRef = 74A687DB2F02D51D001951FE /* ReceiptParser */; };
+		74A687DE2F02D51D001951FE /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 74A687DD2F02D51D001951FE /* RevenueCat */; };
+		74A687E02F02D51D001951FE /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 74A687DF2F02D51D001951FE /* RevenueCatUI */; };
 		74C01A7B2EDFCA1200FF8F00 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 74BE1A7B2EDB7654007406F9 /* Supabase */; };
 		74DF6AE52EE0C51000FB1743 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 74DF6AE42EE0C51000FB1743 /* GoogleSignIn */; };
 		74DF6AE72EE0C51000FB1743 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 74DF6AE62EE0C51000FB1743 /* GoogleSignInSwift */; };
@@ -61,8 +64,11 @@
 			files = (
 				74DF6AE72EE0C51000FB1743 /* GoogleSignInSwift in Frameworks */,
 				74C01A7B2EDFCA1200FF8F00 /* Supabase in Frameworks */,
+				74A687E02F02D51D001951FE /* RevenueCatUI in Frameworks */,
+				74A687DE2F02D51D001951FE /* RevenueCat in Frameworks */,
 				74DF6AE52EE0C51000FB1743 /* GoogleSignIn in Frameworks */,
 				74LOTTIE001EE0C51000FB1743 /* Lottie in Frameworks */,
+				74A687DC2F02D51D001951FE /* ReceiptParser in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -135,6 +141,10 @@
 				74DF6AE42EE0C51000FB1743 /* GoogleSignIn */,
 				74DF6AE62EE0C51000FB1743 /* GoogleSignInSwift */,
 				74LOTTIE002EE0C51000FB1743 /* Lottie */,
+				74A687DB2F02D51D001951FE /* ReceiptParser */,
+				74A687DD2F02D51D001951FE /* RevenueCat */,
+				74A687DF2F02D51D001951FE /* RevenueCatUI */,
+				74A687E12F02D51D001951FE /* RevenueCat_CustomEntitlementComputation */,
 			);
 			productName = "Animarc IOS";
 			productReference = 74BE1A502EDB7651007406F9 /* Animarc IOS.app */;
@@ -222,6 +232,7 @@
 				74BE1A7A2EDB7654007406F9 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				74DF6AE22EE0C3A800FB1743 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				74LOTTIE003EE0C51000FB1743 /* XCRemoteSwiftPackageReference "lottie-ios" */,
+				74A687DA2F02D51D001951FE /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 74BE1A512EDB7651007406F9 /* Products */;
@@ -586,6 +597,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		74A687DA2F02D51D001951FE /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.52.0;
+			};
+		};
 		74BE1A7A2EDB7654007406F9 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift";
@@ -613,6 +632,26 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		74A687DB2F02D51D001951FE /* ReceiptParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 74A687DA2F02D51D001951FE /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = ReceiptParser;
+		};
+		74A687DD2F02D51D001951FE /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 74A687DA2F02D51D001951FE /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		74A687DF2F02D51D001951FE /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 74A687DA2F02D51D001951FE /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
+		};
+		74A687E12F02D51D001951FE /* RevenueCat_CustomEntitlementComputation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 74A687DA2F02D51D001951FE /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat_CustomEntitlementComputation;
+		};
 		74BE1A7B2EDB7654007406F9 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 74BE1A7A2EDB7654007406F9 /* XCRemoteSwiftPackageReference "supabase-swift" */;

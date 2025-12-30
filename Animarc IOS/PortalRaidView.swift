@@ -22,6 +22,7 @@ struct RaidResultData: Identifiable {
 struct PortalRaidView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var progressManager: UserProgressManager
+    @StateObject private var revenueCat = RevenueCatManager.shared
     
     @State private var selectedBoss: PortalBoss? = nil
     @State private var contentAppeared = false
@@ -32,8 +33,10 @@ struct PortalRaidView: View {
     @State private var availableBosses: [PortalBoss] = []
     @State private var bossProgress: [UUID: PortalRaidProgress] = [:]
     @State private var portalAttempts: Int = 50
+    @State private var bossAttemptsRemaining: Int = 1
     @State private var isLoading = true
     @State private var errorMessage: String? = nil
+    @State private var showPaywall = false
     
     // Cached data for optimistic UI
     @State private var cachedBosses: [PortalBoss] = []
@@ -87,7 +90,7 @@ struct PortalRaidView: View {
                         
                         Spacer()
                         
-                        // Portal attempts counter with minimal loading indicator
+                        // Daily boss attempts counter
                         VStack(alignment: .trailing, spacing: 2) {
                             if isLoading && availableBosses.isEmpty {
                                 ProgressView()
@@ -95,16 +98,16 @@ struct PortalRaidView: View {
                                     .tint(Color(hex: "#F59E0B"))
                                     .frame(width: 20, height: 20)
                             } else {
-                                Text("\(portalAttempts)")
+                                Text("\(bossAttemptsRemaining)")
                                     .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(Color(hex: "#F59E0B"))
+                                    .foregroundColor(bossAttemptsRemaining > 0 ? Color(hex: "#F59E0B") : Color(hex: "#DC2626"))
                             }
-                            Text("ATTEMPTS")
-                                .font(.system(size: 9, weight: .bold))
+                            Text("BOSS ATTEMPTS")
+                                .font(.system(size: 8, weight: .bold))
                                 .foregroundColor(Color(hex: "#9CA3AF"))
-                                .tracking(1)
+                                .tracking(0.5)
                         }
-                        .frame(width: 60)
+                        .frame(width: 70)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
@@ -133,7 +136,7 @@ struct PortalRaidView: View {
                                         progress: bossProgress[boss.id],
                                         userStats: calculateUserStats(),
                                         isSelected: selectedBoss?.id == boss.id,
-                                        portalAttempts: portalAttempts,
+                                        portalAttempts: bossAttemptsRemaining,
                                         onTap: {
                                             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                                             impactFeedback.impactOccurred()
@@ -187,8 +190,8 @@ struct PortalRaidView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
-                    .disabled(selectedBoss == nil || portalAttempts <= 0)
-                    .opacity((selectedBoss == nil || portalAttempts <= 0) ? 0.6 : 1.0)
+                    .disabled(selectedBoss == nil || bossAttemptsRemaining <= 0)
+                    .opacity((selectedBoss == nil || bossAttemptsRemaining <= 0) ? 0.6 : 1.0)
                 }
                 
                 // Battle animation overlay
@@ -229,6 +232,9 @@ struct PortalRaidView: View {
             )
             .environmentObject(progressManager)
         }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
         .task {
             await loadData()
         }
@@ -247,6 +253,7 @@ struct PortalRaidView: View {
                 availableBosses = cachedBosses
                 bossProgress = cachedProgress
                 portalAttempts = cachedAttempts
+                // Note: bossAttemptsRemaining will be loaded from database
                 isLoading = false // Hide loading immediately
                 contentAppeared = true
                 
@@ -281,12 +288,14 @@ struct PortalRaidView: View {
             }
             
             // Run independent database calls in parallel for better performance
+            let isPro = await MainActor.run { revenueCat.isPro }
             async let attemptsTask = SupabaseManager.shared.checkAndResetDailyAttempts(userId: userId)
+            async let bossAttemptsTask = SupabaseManager.shared.getRemainingBossAttempts(userId: userId, isPro: isPro)
             async let userProgressTask = SupabaseManager.shared.fetchPortalProgress(userId: userId)
             async let bossesTask = SupabaseManager.shared.fetchAvailablePortalBosses(userRank: progress.currentRank)
             
             // Wait for all parallel calls to complete
-            let (fetchedAttempts, allUserProgress, allBosses) = try await (attemptsTask, userProgressTask, bossesTask)
+            let (fetchedAttempts, remainingBossAttempts, allUserProgress, allBosses) = try await (attemptsTask, bossAttemptsTask, userProgressTask, bossesTask)
             
             // Process results
             let completedBossIds = Set(allUserProgress.filter { $0.completed }.map { $0.portalBossId })
@@ -387,14 +396,37 @@ struct PortalRaidView: View {
             return
         }
         
-        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-        impactFeedback.impactOccurred()
-        
-        let userStats = calculateUserStats()
-        let bossStats = boss.battlerStats
-        
-        pendingRaidData = (boss: boss, progress: progress, userStats: userStats, bossStats: bossStats)
-        showBattleAnimation = true
+        // Check daily boss attempts before starting
+        Task {
+            guard let session = try? await SupabaseManager.shared.client.auth.session else {
+                return
+            }
+            let userId = session.user.id
+            let isPro = await MainActor.run { revenueCat.isPro }
+            
+            // Check if user can attempt boss
+            let canAttempt = try await SupabaseManager.shared.canAttemptBoss(userId: userId, isPro: isPro)
+            
+            if !canAttempt {
+                // Show paywall for free users on 2nd attempt
+                await MainActor.run {
+                    showPaywall = true
+                }
+                return
+            }
+            
+            // User has attempts remaining, proceed with battle
+            await MainActor.run {
+                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                impactFeedback.impactOccurred()
+                
+                let userStats = calculateUserStats()
+                let bossStats = boss.battlerStats
+                
+                pendingRaidData = (boss: boss, progress: progress, userStats: userStats, bossStats: bossStats)
+                showBattleAnimation = true
+            }
+        }
     }
     
     private func executeRaidAttempt(raidData: (boss: PortalBoss, progress: PortalRaidProgress, userStats: BattlerStats, bossStats: BattlerStats)) async {
@@ -404,8 +436,16 @@ struct PortalRaidView: View {
             }
             let userId = session.user.id
             
-            // Consume attempt
+            // Consume portal attempt
             portalAttempts = try await SupabaseManager.shared.consumePortalAttempt(userId: userId)
+            
+            // Increment daily boss attempts
+            let updatedLimits = try await SupabaseManager.shared.incrementBossAttempts(userId: userId)
+            let isPro = await MainActor.run { revenueCat.isPro }
+            let maxAttempts = isPro ? 3 : 1
+            await MainActor.run {
+                bossAttemptsRemaining = max(0, maxAttempts - updatedLimits.bossAttemptsUsed)
+            }
             
             // Execute raid attempt
             let result = PortalService.executeRaidAttempt(
@@ -446,9 +486,11 @@ struct PortalRaidView: View {
                 
                 // Drop portal boss item (non-critical, don't fail if it errors)
                 do {
+                    let isPro = await MainActor.run { revenueCat.isPro }
                     let droppedItem = try await SupabaseManager.shared.dropPortalBossItem(
                         userId: userId,
-                        bossRank: raidData.boss.rank
+                        bossRank: raidData.boss.rank,
+                        isPro: isPro
                     )
                     await MainActor.run {
                         progressManager.pendingPortalBossItemDrop = droppedItem

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct OnboardingPage1_Welcome: View {
     @Binding var currentPage: Int
+    let onSkipToAuth: () -> Void
     @State private var contentAppeared = false
     
     var body: some View {
@@ -87,6 +88,26 @@ struct OnboardingPage1_Welcome: View {
                 .animation(.easeOut(duration: 0.6).delay(0.5), value: contentAppeared)
                 
                 Spacer()
+                    .frame(height: 16)
+                
+                // Already have an account button
+                Button(action: {
+                    // Haptic feedback
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                    impactFeedback.impactOccurred()
+                    
+                    // Skip onboarding and go to auth
+                    onSkipToAuth()
+                }) {
+                    Text("Already have an account")
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundColor(Color(hex: "#9CA3AF"))
+                }
+                .opacity(contentAppeared ? 1 : 0)
+                .offset(y: contentAppeared ? 0 : 20)
+                .animation(.easeOut(duration: 0.6).delay(0.6), value: contentAppeared)
+                
+                Spacer()
                     .frame(height: 24)
                 
                 // Page indicator dots
@@ -120,6 +141,9 @@ struct OnboardingPage1_Welcome: View {
 }
 
 #Preview {
-    OnboardingPage1_Welcome(currentPage: .constant(0))
+    OnboardingPage1_Welcome(
+        currentPage: .constant(0),
+        onSkipToAuth: {}
+    )
 }
 

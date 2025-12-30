@@ -1,5 +1,5 @@
 {
-  "originHash" : "872346ea932c335d633b794d3c9b3a553748d78045ecd44b978b13b72fc75e57",
+  "originHash" : "5a2f4f6a40ad70fff5cb6cb51c74fadc26562f797c8afdfdcf2f84f3baec060f",
   "pins" : [
     {
       "identity" : "app-check",
@@ -58,7 +58,7 @@
     {
       "identity" : "lottie-ios",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/airbnb/lottie-ios",
+      "location" : "https://github.com/airbnb/lottie-ios.git",
       "state" : {
         "revision" : "a004050748dc197c56256a14dca49a035d74726c",
         "version" : "4.5.2"
@@ -74,12 +74,21 @@
       }
     },
     {
+      "identity" : "purchases-ios-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/RevenueCat/purchases-ios-spm.git",
+      "state" : {
+        "revision" : "21e33549780659771085e252093305d12c3b067d",
+        "version" : "5.52.0"
+      }
+    },
+    {
       "identity" : "supabase-swift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/supabase/supabase-swift",
       "state" : {
-        "revision" : "65507b524f0ec09ebb6f6b1db0db1a8e4265436e",
-        "version" : "2.37.0"
+        "revision" : "f633f1ce9ff6dac9f33a1717d191a6c3985148fa",
+        "version" : "2.39.0"
       }
     },
     {
@@ -132,8 +141,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
-        "revision" : "4c27acf5394b645b70d8ba19dc249c0472d5f618",
-        "version" : "1.7.0"
+        "revision" : "31073495cae9caf243c440eac94b3ab067e3d7bc",
+        "version" : "1.8.0"
       }
     }
   ],

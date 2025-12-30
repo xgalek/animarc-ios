@@ -42,3 +42,5 @@ struct SimplifiedXPBarPreview: View {
         .background(Color(hex: "#1A2332"))
 }
 
+
+
