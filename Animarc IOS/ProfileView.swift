@@ -382,25 +382,45 @@ struct ProfileView: View {
                         
                         VStack(spacing: 0) {
                             if revenueCat.isPro {
-                                // Pro user - show manage subscription
+                                // Pro user - show subscription status (non-clickable)
+                                HStack {
+                                    Image(systemName: "crown.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(Color(hex: "#FFD700"))
+                                        .frame(width: 24)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Animarc Pro")
+                                            .font(.body)
+                                            .foregroundColor(.white)
+                                        
+                                        Text("Active")
+                                            .font(.caption)
+                                            .foregroundColor(Color(hex: "#4ADE80"))
+                                    }
+                                    
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                                
+                                Divider()
+                                    .background(Color(hex: "#9CA3AF").opacity(0.3))
+                                    .padding(.leading, 60)
+                                
+                                // Direct Manage Subscription button (Apple requirement)
                                 Button(action: {
-                                    showCustomerCenter = true
+                                    revenueCat.presentCustomerCenter()
                                 }) {
                                     HStack {
-                                        Image(systemName: "crown.fill")
+                                        Image(systemName: "creditcard.fill")
                                             .font(.system(size: 18))
-                                            .foregroundColor(Color(hex: "#FFD700"))
+                                            .foregroundColor(Color(hex: "#9CA3AF"))
                                             .frame(width: 24)
                                         
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("Animarc Pro")
-                                                .font(.body)
-                                                .foregroundColor(.white)
-                                            
-                                            Text("Active")
-                                                .font(.caption)
-                                                .foregroundColor(Color(hex: "#4ADE80"))
-                                        }
+                                        Text("Manage Subscription")
+                                            .font(.body)
+                                            .foregroundColor(.white)
                                         
                                         Spacer()
                                         
@@ -586,6 +606,69 @@ struct ProfileView: View {
                         }
                         .padding(.horizontal, 20)
                         
+                        // Legal Section
+                        Text("Legal")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                        
+                        VStack(spacing: 0) {
+                            Button(action: {
+                                openURL("https://animarc.app/privacy")
+                            }) {
+                                HStack {
+                                    Image(systemName: "hand.raised.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(Color(hex: "#9CA3AF"))
+                                        .frame(width: 24)
+                                    
+                                    Text("Privacy Policy")
+                                        .font(.body)
+                                        .foregroundColor(.white)
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(Color(hex: "#9CA3AF"))
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                            }
+                            
+                            Divider()
+                                .background(Color(hex: "#9CA3AF").opacity(0.3))
+                                .padding(.leading, 60)
+                            
+                            Button(action: {
+                                openURL("https://animarc.app/terms")
+                            }) {
+                                HStack {
+                                    Image(systemName: "doc.text.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(Color(hex: "#9CA3AF"))
+                                        .frame(width: 24)
+                                    
+                                    Text("Terms of Use")
+                                        .font(.body)
+                                        .foregroundColor(.white)
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(Color(hex: "#9CA3AF"))
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                            }
+                        }
+                        .background(Color(hex: "#374151"))
+                        .cornerRadius(15)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        
                         // Delete Section
                         Text("Delete")
                             .font(.system(size: 22, weight: .bold))
@@ -696,6 +779,11 @@ struct ProfileView: View {
     }
     
     // MARK: - Helper Methods
+    
+    private func openURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        UIApplication.shared.open(url)
+    }
     
     private func handleSignOut() async {
         isSigningOut = true

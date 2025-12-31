@@ -7,6 +7,7 @@
 
 import Foundation
 import RevenueCat
+import StoreKit
 import SwiftUI
 import UIKit
 
@@ -141,8 +142,30 @@ final class RevenueCatManager: NSObject, ObservableObject {
     // MARK: - Customer Center
     @MainActor
     func presentCustomerCenter() {
-        // RevenueCat doesn't have a built-in showCustomerCenter method
-        // Open the App Store subscription management page
+        // Use StoreKit 2 API if available (iOS 15+)
+        if #available(iOS 15.0, *) {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                Task { @MainActor in
+                    do {
+                        try await AppStore.showManageSubscriptions(in: windowScene)
+                    } catch {
+                        print("StoreKit subscription management error: \(error.localizedDescription)")
+                        // Fallback to URL if StoreKit fails
+                        self.openSubscriptionURL()
+                    }
+                }
+            } else {
+                // Fallback to URL if window scene not available
+                openSubscriptionURL()
+            }
+        } else {
+            // Fallback to URL for older iOS versions
+            openSubscriptionURL()
+        }
+    }
+    
+    @MainActor
+    private func openSubscriptionURL() {
         if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
             UIApplication.shared.open(url)
         } else {
@@ -198,5 +221,6 @@ enum RevenueCatError: LocalizedError {
         }
     }
 }
+
 
 
