@@ -259,3 +259,55 @@ extension SupabaseManager {
     // - getPublicURL(for bucket:, path:)
 }
 
+// MARK: - Account Deletion
+
+extension SupabaseManager {
+    
+    /// Permanently delete user account and all associated data
+    /// - Parameter userId: The user's UUID
+    /// - Throws: Error if deletion fails
+    func deleteUserAccount(userId: UUID) async throws {
+        return try await withRetry {
+            // Delete all user data from database tables
+            // Order matters for foreign key constraints
+            
+            // 1. Delete portal progress
+            try await self.client
+                .from("portal_progress")
+                .delete()
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+            
+            // 2. Delete portal inventory
+            try await self.client
+                .from("portal_inventory")
+                .delete()
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+            
+            // 3. Delete focus sessions
+            try await self.client
+                .from("focus_sessions")
+                .delete()
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+            
+            // 4. Delete focus streaks
+            try await self.client
+                .from("focus_streaks")
+                .delete()
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+            
+            // 5. Delete user progress (should be last)
+            try await self.client
+                .from("user_progress")
+                .delete()
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+            
+            print("User account and all data deleted successfully for user: \(userId)")
+        }
+    }
+}
+

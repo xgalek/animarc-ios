@@ -29,6 +29,10 @@ struct ProfileView: View {
     @State private var displayNameErrorMessage = ""
     @State private var showCustomerCenter = false
     @State private var showPaywall = false
+    @State private var showDeleteAccountConfirmation = false
+    @State private var showDeleteAccountError = false
+    @State private var deleteAccountErrorMessage = ""
+    @State private var isDeletingAccount = false
     
     var body: some View {
         ZStack {
@@ -578,9 +582,45 @@ struct ProfileView: View {
                                 .background(Color(hex: "#374151"))
                                 .cornerRadius(15)
                             }
-                            .disabled(isSigningOut)
+                            .disabled(isSigningOut || isDeletingAccount)
                         }
                         .padding(.horizontal, 20)
+                        
+                        // Delete Section
+                        Text("Delete")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                        
+                        VStack(spacing: 0) {
+                            Button(action: {
+                                showDeleteAccountConfirmation = true
+                            }) {
+                                HStack {
+                                    if isDeletingAccount {
+                                        ProgressView()
+                                            .tint(.red)
+                                            .scaleEffect(0.8)
+                                    } else {
+                                        Image(systemName: "trash.fill")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(.red)
+                                            .frame(width: 24)
+                                    }
+                                    Text(isDeletingAccount ? "Deleting Account..." : "Delete Account")
+                                        .font(.body)
+                                        .foregroundColor(.red)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                            }
+                        }
+                        .background(Color(hex: "#374151"))
+                        .cornerRadius(15)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
                     }
                     .padding(.bottom, 40)
                 }
@@ -622,6 +662,30 @@ struct ProfileView: View {
             }
         } message: {
             Text(displayNameErrorMessage)
+        }
+        .confirmationDialog(
+            "Delete Account",
+            isPresented: $showDeleteAccountConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Account", role: .destructive) {
+                Task {
+                    await handleDeleteAccount()
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                showDeleteAccountConfirmation = false
+            }
+        } message: {
+            Text("This action cannot be undone. All your data including progress, sessions, items, and streaks will be permanently deleted. Are you sure you want to delete your account?")
+        }
+        .alert("Delete Account Error", isPresented: $showDeleteAccountError) {
+            Button("OK", role: .cancel) {
+                showDeleteAccountError = false
+                isDeletingAccount = false
+            }
+        } message: {
+            Text(deleteAccountErrorMessage)
         }
         .sheet(isPresented: $showCustomerCenter) {
             CustomerCenterView()
@@ -701,6 +765,49 @@ struct ProfileView: View {
                 showDisplayNameError = true
             }
             print("ProfileView: Display name update error: \(error)")
+        }
+    }
+    
+    private func handleDeleteAccount() async {
+        await MainActor.run {
+            isDeletingAccount = true
+        }
+        
+        do {
+            // Get current user ID
+            guard let userId = try? await SupabaseManager.shared.client.auth.session.user.id else {
+                await MainActor.run {
+                    deleteAccountErrorMessage = "Not authenticated. Please sign in again."
+                    showDeleteAccountError = true
+                    isDeletingAccount = false
+                }
+                return
+            }
+            
+            // Delete all user data
+            try await SupabaseManager.shared.deleteUserAccount(userId: userId)
+            
+            // Logout from RevenueCat
+            try? await revenueCat.logout()
+            
+            // Sign out from Supabase (this revokes access)
+            try await SupabaseManager.shared.signOut()
+            
+            // Clear local data
+            await MainActor.run {
+                progressManager.clearData()
+                isDeletingAccount = false
+                // User will be redirected to auth screen automatically via SupabaseManager state
+            }
+            
+            print("Account deleted successfully")
+        } catch {
+            await MainActor.run {
+                isDeletingAccount = false
+                deleteAccountErrorMessage = "Failed to delete account: \(error.localizedDescription). Please try again or contact support."
+                showDeleteAccountError = true
+            }
+            print("ProfileView: Delete account error: \(error)")
         }
     }
 }
