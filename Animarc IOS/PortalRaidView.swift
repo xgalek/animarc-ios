@@ -102,12 +102,12 @@ struct PortalRaidView: View {
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(bossAttemptsRemaining > 0 ? Color(hex: "#F59E0B") : Color(hex: "#DC2626"))
                             }
-                            Text("BOSS ATTEMPTS")
-                                .font(.system(size: 8, weight: .bold))
+                            Text("DAILY BOSS ATTEMPTS")
+                                .font(.system(size: 7, weight: .bold))
                                 .foregroundColor(Color(hex: "#9CA3AF"))
-                                .tracking(0.5)
+                                .tracking(0.3)
                         }
-                        .frame(width: 70)
+                        .frame(width: 80)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)

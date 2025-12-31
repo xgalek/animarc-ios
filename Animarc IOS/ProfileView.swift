@@ -123,7 +123,7 @@ struct ProfileView: View {
                                     }) {
                                         Image(systemName: "square.and.pencil")
                                             .font(.system(size: 18, weight: .medium))
-                                            .foregroundColor(Color(hex: "#6B46C1"))
+                                            .foregroundColor(Color(hex: "#FF9500"))
                                     }
                                 }
                             }

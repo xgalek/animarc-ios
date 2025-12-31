@@ -23,7 +23,7 @@ final class RevenueCatManager: NSObject, ObservableObject {
     @Published var errorMessage: String?
     
     // MARK: - Configuration
-    private let apiKey: String = "test_PpfktWMjrNlhuCRieorGHvKiYTs"
+    private let apiKey: String = "appl_OCBzZIPDsWduwvkbMGWGizCBIzF"
     
     // MARK: - Entitlement Identifier
     let proEntitlementIdentifier = "Animarc Pro"
@@ -38,7 +38,7 @@ final class RevenueCatManager: NSObject, ObservableObject {
     
     // MARK: - Configuration
     private func configureRevenueCat() {
-        Purchases.logLevel = .debug // Use .info or .warn in production
+        Purchases.logLevel = .info // Production log level
         
         Purchases.configure(
             with: Configuration.Builder(withAPIKey: apiKey)
