@@ -37,23 +37,34 @@ extension SupabaseManager {
             
             let nextRank = currentIndex < ranks.count - 1 ? ranks[currentIndex + 1] : nil
             
-            var query = self.client
-                .from("portal_bosses")
-                .select()
-                .in("rank", value: [userRank])
-            
-            if let nextRank = nextRank {
-                // Fetch current rank and next rank bosses
-                let bosses: [PortalBoss] = try await self.client
-                    .from("portal_bosses")
-                    .select()
-                    .in("rank", value: [userRank, nextRank])
-                    .execute()
-                    .value
-                return bosses
-            } else {
-                // At max rank, only fetch current rank
-                return try await query.execute().value
+            do {
+                // Build query based on whether we have a next rank
+                if let nextRank = nextRank {
+                    // Fetch current rank and next rank bosses
+                    let bosses: [PortalBoss] = try await self.client
+                        .from("portal_bosses")
+                        .select()
+                        .in("rank", value: [userRank, nextRank])
+                        .execute()
+                        .value
+                    return bosses
+                } else {
+                    // At max rank, only fetch current rank
+                    let bosses: [PortalBoss] = try await self.client
+                        .from("portal_bosses")
+                        .select()
+                        .in("rank", value: [userRank])
+                        .execute()
+                        .value
+                    return bosses
+                }
+            } catch {
+                print("Error fetching portal bosses: \(error)")
+                print("Error type: \(type(of: error))")
+                if let decodingError = error as? DecodingError {
+                    print("Decoding error details: \(decodingError)")
+                }
+                throw error
             }
         }
     }

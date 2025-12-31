@@ -38,6 +38,54 @@ struct PortalBoss: Codable, Identifiable {
         case updatedAt = "updated_at"
     }
     
+    /// Custom decoder to handle date parsing
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        rank = try container.decode(String.self, forKey: .rank)
+        imageName = try container.decode(String.self, forKey: .imageName)
+        specialization = try container.decode(String.self, forKey: .specialization)
+        statHealth = try container.decode(Int.self, forKey: .statHealth)
+        statAttack = try container.decode(Int.self, forKey: .statAttack)
+        statDefense = try container.decode(Int.self, forKey: .statDefense)
+        statSpeed = try container.decode(Int.self, forKey: .statSpeed)
+        maxHp = try container.decode(Int.self, forKey: .maxHp)
+        
+        // Handle dates - decode as optional first, then provide default
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+    }
+    
+    /// Memberwise initializer (required when custom decoder is present)
+    init(
+        id: UUID,
+        name: String,
+        rank: String,
+        imageName: String,
+        specialization: String,
+        statHealth: Int,
+        statAttack: Int,
+        statDefense: Int,
+        statSpeed: Int,
+        maxHp: Int,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.name = name
+        self.rank = rank
+        self.imageName = imageName
+        self.specialization = specialization
+        self.statHealth = statHealth
+        self.statAttack = statAttack
+        self.statDefense = statDefense
+        self.statSpeed = statSpeed
+        self.maxHp = maxHp
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+    
     var rankColor: Color {
         RankService.getRankByCode(rank)?.swiftUIColor ?? Color.gray
     }

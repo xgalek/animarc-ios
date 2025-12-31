@@ -33,6 +33,48 @@ struct PortalRaidProgress: Codable, Identifiable {
         case updatedAt = "updated_at"
     }
     
+    /// Custom decoder to handle date parsing
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        userId = try container.decode(UUID.self, forKey: .userId)
+        portalBossId = try container.decode(UUID.self, forKey: .portalBossId)
+        currentDamage = try container.decode(Int.self, forKey: .currentDamage)
+        maxHp = try container.decode(Int.self, forKey: .maxHp)
+        progressPercent = try container.decode(Double.self, forKey: .progressPercent)
+        completed = try container.decode(Bool.self, forKey: .completed)
+        completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
+        
+        // Handle dates - decode as optional first, then provide default
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+    }
+    
+    /// Memberwise initializer (required when custom decoder is present)
+    init(
+        id: UUID,
+        userId: UUID,
+        portalBossId: UUID,
+        currentDamage: Int,
+        maxHp: Int,
+        progressPercent: Double,
+        completed: Bool,
+        completedAt: Date?,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.userId = userId
+        self.portalBossId = portalBossId
+        self.currentDamage = currentDamage
+        self.maxHp = maxHp
+        self.progressPercent = progressPercent
+        self.completed = completed
+        self.completedAt = completedAt
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+    
     var remainingHp: Int {
         max(0, maxHp - currentDamage)
     }

@@ -289,13 +289,45 @@ struct PortalRaidView: View {
             
             // Run independent database calls in parallel for better performance
             let isPro = await MainActor.run { revenueCat.isPro }
-            async let attemptsTask = SupabaseManager.shared.checkAndResetDailyAttempts(userId: userId)
-            async let bossAttemptsTask = SupabaseManager.shared.getRemainingBossAttempts(userId: userId, isPro: isPro)
-            async let userProgressTask = SupabaseManager.shared.fetchPortalProgress(userId: userId)
-            async let bossesTask = SupabaseManager.shared.fetchAvailablePortalBosses(userRank: progress.currentRank)
             
-            // Wait for all parallel calls to complete
-            let (fetchedAttempts, remainingBossAttempts, allUserProgress, allBosses) = try await (attemptsTask, bossAttemptsTask, userProgressTask, bossesTask)
+            // Wrap each task individually to identify which one fails
+            let fetchedAttempts: Int
+            let remainingBossAttempts: Int
+            let allUserProgress: [PortalRaidProgress]
+            let allBosses: [PortalBoss]
+            
+            do {
+                fetchedAttempts = try await SupabaseManager.shared.checkAndResetDailyAttempts(userId: userId)
+            } catch {
+                print("❌ Error fetching attempts: \(error)")
+                throw error
+            }
+            
+            do {
+                remainingBossAttempts = try await SupabaseManager.shared.getRemainingBossAttempts(userId: userId, isPro: isPro)
+            } catch {
+                print("❌ Error fetching boss attempts: \(error)")
+                throw error
+            }
+            
+            do {
+                allUserProgress = try await SupabaseManager.shared.fetchPortalProgress(userId: userId)
+            } catch {
+                print("❌ Error fetching portal progress: \(error)")
+                throw error
+            }
+            
+            do {
+                allBosses = try await SupabaseManager.shared.fetchAvailablePortalBosses(userRank: progress.currentRank)
+                print("✅ Successfully fetched \(allBosses.count) bosses")
+            } catch {
+                print("❌ Error fetching portal bosses: \(error)")
+                print("Error details: \(error.localizedDescription)")
+                if let decodingError = error as? DecodingError {
+                    print("Decoding error: \(decodingError)")
+                }
+                throw error
+            }
             
             // Process results
             let completedBossIds = Set(allUserProgress.filter { $0.completed }.map { $0.portalBossId })

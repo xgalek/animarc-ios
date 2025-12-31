@@ -1418,9 +1418,18 @@ struct FocusSessionSettings: Codable {
     static let userDefaultsKey = "FocusSessionSettings"
     
     static func load() -> FocusSessionSettings {
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+        // Check if focus settings have been initialized before
+        let hasInitializedKey = "FocusSessionSettingsInitialized"
+        
+        // If settings haven't been initialized, always default to stopwatch
+        guard UserDefaults.standard.bool(forKey: hasInitializedKey),
+              let data = UserDefaults.standard.data(forKey: userDefaultsKey),
               let settings = try? JSONDecoder().decode(FocusSessionSettings.self, from: data) else {
-            return FocusSessionSettings(mode: .stopwatch, timerDuration: 25, pomodoroCount: 1)
+            // First time - default to stopwatch
+            let defaultSettings = FocusSessionSettings(mode: .stopwatch, timerDuration: 25, pomodoroCount: 1)
+            defaultSettings.save()
+            UserDefaults.standard.set(true, forKey: hasInitializedKey)
+            return defaultSettings
         }
         return settings
     }

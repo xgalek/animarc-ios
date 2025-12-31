@@ -24,6 +24,58 @@ struct UserDailyLimits: Codable {
         case bossAttemptsUsed = "boss_attempts_used"
         case updatedAt = "updated_at"
     }
+    
+    /// Custom decoder to handle date-only strings (e.g., "2025-12-30")
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        userId = try container.decode(UUID.self, forKey: .userId)
+        bossAttemptsUsed = try container.decode(Int.self, forKey: .bossAttemptsUsed)
+        
+        // Handle date field - can be date-only string or full ISO8601
+        if let dateString = try? container.decode(String.self, forKey: .date) {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            
+            // Try date-only format first (YYYY-MM-DD)
+            formatter.dateFormat = "yyyy-MM-dd"
+            if let parsedDate = formatter.date(from: dateString) {
+                date = parsedDate
+            } else {
+                // Try ISO8601 format
+                formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'"
+                if let parsedDate = formatter.date(from: dateString) {
+                    date = parsedDate
+                } else {
+                    // Fallback to current date
+                    date = Date()
+                }
+            }
+        } else if let dateValue = try? container.decode(Date.self, forKey: .date) {
+            date = dateValue
+        } else {
+            date = Date()
+        }
+        
+        // Handle updatedAt - decode as optional first, then provide default
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+    }
+    
+    /// Memberwise initializer (required when custom decoder is present)
+    init(
+        id: UUID,
+        userId: UUID,
+        date: Date,
+        bossAttemptsUsed: Int,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.userId = userId
+        self.date = date
+        self.bossAttemptsUsed = bossAttemptsUsed
+        self.updatedAt = updatedAt
+    }
 }
 
 // MARK: - Daily Limits Extension
@@ -132,3 +184,4 @@ extension SupabaseManager {
         return updated
     }
 }
+
