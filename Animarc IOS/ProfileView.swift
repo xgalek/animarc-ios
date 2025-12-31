@@ -14,13 +14,11 @@ struct ProfileView: View {
     @StateObject private var revenueCat = RevenueCatManager.shared
     @State private var notificationsEnabled = true
     @State private var soundsEnabled = true
-    @State private var sessionsToday: [FocusSession] = []
     @State private var selection = FamilyActivitySelection()
     @State private var showPicker = false
     @State private var showSignOutError = false
     @State private var signOutErrorMessage = ""
     @State private var isSigningOut = false
-    @State private var isLoadingStats = false
     @AppStorage("KeepScreenOnDuringFocus") private var keepScreenOn: Bool = true
     @State private var isEditingDisplayName = false
     @State private var editedDisplayName = ""
@@ -51,31 +49,6 @@ struct ProfileView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
-                    
-                    // Middle Section - Quick Stats Grid
-                    HStack(spacing: 16) {
-                        // Sessions Today
-                        StatCard(
-                            icon: "flame.fill",
-                            label: "Sessions Today",
-                            value: isLoadingStats ? "..." : "\(sessionsToday.count)"
-                        )
-                        
-                        // Total Sessions
-                        StatCard(
-                            icon: "checkmark.circle.fill",
-                            label: "Total Sessions",
-                            value: "\(progressManager.totalSessions)"
-                        )
-                        
-                        // Total XP
-                        StatCard(
-                            icon: "star.fill",
-                            label: "Total XP",
-                            value: "\(progressManager.totalXP)"
-                        )
-                    }
-                    .padding(.horizontal, 20)
                     
                     // Bottom Section - Settings
                     VStack(alignment: .leading, spacing: 20) {
@@ -710,9 +683,6 @@ struct ProfileView: View {
             }
         }
         .task {
-            isLoadingStats = true
-            sessionsToday = await progressManager.getSessionsToday()
-            isLoadingStats = false
             appBlockingManager.refreshAuthorizationStatus()
         }
         .familyActivityPicker(isPresented: $showPicker, selection: $selection)
@@ -900,34 +870,6 @@ struct ProfileView: View {
     }
 }
 
-// Stat Card Component
-struct StatCard: View {
-    let icon: String
-    let label: String
-    let value: String
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundColor(Color(hex: "#A770FF"))
-            
-            Text(label)
-                .font(.caption)
-                .foregroundColor(Color(hex: "#9CA3AF"))
-                .multilineTextAlignment(.center)
-            
-            Text(value)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.white)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-        .background(Color(hex: "#374151"))
-        .cornerRadius(15)
-    }
-}
-
 // Settings Row Component
 struct SettingsRow: View {
     let icon: String
@@ -949,7 +891,7 @@ struct SettingsRow: View {
             
             Toggle("", isOn: $toggle)
                 .labelsHidden()
-                .tint(Color(hex: "#6B46C1"))
+                .tint(Color(hex: "#FF9500"))
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)

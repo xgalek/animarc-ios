@@ -64,7 +64,7 @@ struct StatsView: View {
                                         .padding(.vertical, 8)
                                         .background(
                                             selectedPeriod == period
-                                                ? Color(hex: "#8B5CF6")
+                                                ? Color(hex: "#FF9500")
                                                 : Color.clear
                                         )
                                         .cornerRadius(8)
