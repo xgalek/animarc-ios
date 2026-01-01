@@ -506,77 +506,33 @@ struct ProfileView: View {
                         .padding(.top, 8)
                         #endif
                         
-                        // Future buttons placeholder
-                        VStack(spacing: 12) {
-                            Button(action: {
-                                // About action - placeholder
-                            }) {
-                                HStack {
-                                    Image(systemName: "info.circle.fill")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(Color(hex: "#9CA3AF"))
-                                    Text("About")
-                                        .font(.body)
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(Color(hex: "#9CA3AF"))
-                                }
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 16)
-                                .background(Color(hex: "#374151"))
-                                .cornerRadius(15)
+                        // Sign Out Button
+                        Button(action: {
+                            Task {
+                                await handleSignOut()
                             }
-                            
-                            Button(action: {
-                                // Help action - placeholder
-                            }) {
-                                HStack {
-                                    Image(systemName: "questionmark.circle.fill")
+                        }) {
+                            HStack {
+                                if isSigningOut {
+                                    ProgressView()
+                                        .tint(.red)
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "rectangle.portrait.and.arrow.right")
                                         .font(.system(size: 18))
-                                        .foregroundColor(Color(hex: "#9CA3AF"))
-                                    Text("Help")
-                                        .font(.body)
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(Color(hex: "#9CA3AF"))
-                                }
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 16)
-                                .background(Color(hex: "#374151"))
-                                .cornerRadius(15)
-                            }
-                            
-                            Button(action: {
-                                Task {
-                                    await handleSignOut()
-                                }
-                            }) {
-                                HStack {
-                                    if isSigningOut {
-                                        ProgressView()
-                                            .tint(.red)
-                                            .scaleEffect(0.8)
-                                    } else {
-                                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                                            .font(.system(size: 18))
-                                            .foregroundColor(.red)
-                                    }
-                                    Text(isSigningOut ? "Signing Out..." : "Sign Out")
-                                        .font(.body)
                                         .foregroundColor(.red)
-                                    Spacer()
                                 }
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 16)
-                                .background(Color(hex: "#374151"))
-                                .cornerRadius(15)
+                                Text(isSigningOut ? "Signing Out..." : "Sign Out")
+                                    .font(.body)
+                                    .foregroundColor(.red)
+                                Spacer()
                             }
-                            .disabled(isSigningOut || isDeletingAccount)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                            .background(Color(hex: "#374151"))
+                            .cornerRadius(15)
                         }
+                        .disabled(isSigningOut || isDeletingAccount)
                         .padding(.horizontal, 20)
                         
                         // Legal Section

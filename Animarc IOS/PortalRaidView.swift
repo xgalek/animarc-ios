@@ -23,6 +23,7 @@ struct PortalRaidView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var progressManager: UserProgressManager
     @StateObject private var revenueCat = RevenueCatManager.shared
+    @StateObject private var errorManager = ErrorManager.shared
     
     @State private var selectedBoss: PortalBoss? = nil
     @State private var contentAppeared = false
@@ -37,6 +38,10 @@ struct PortalRaidView: View {
     @State private var isLoading = true
     @State private var errorMessage: String? = nil
     @State private var showPaywall = false
+    
+    // Timer for Pro users countdown
+    @State private var timeUntilReset: TimeInterval = 0
+    @State private var timerTask: Task<Void, Never>? = nil
     
     // Cached data for optimistic UI
     @State private var cachedBosses: [PortalBoss] = []
@@ -167,13 +172,43 @@ struct PortalRaidView: View {
                     Spacer()
                     
                     Button(action: {
-                        startRaid()
+                        if bossAttemptsRemaining <= 0 {
+                            // No attempts remaining
+                            if revenueCat.isPro {
+                                // Pro user: show toast notification
+                                errorManager.showInfo("Your character is resting. Ready for another fight tomorrow!")
+                            } else {
+                                // Free user: show paywall
+                                showPaywall = true
+                            }
+                        } else {
+                            // Has attempts: start raid
+                            startRaid()
+                        }
                     }) {
                         HStack(spacing: 8) {
-                            Image(systemName: "bolt.fill")
-                                .font(.system(size: 18, weight: .bold))
-                            Text("ATTACK BOSS")
-                                .font(.system(size: 18, weight: .bold))
+                            if bossAttemptsRemaining <= 0 {
+                                // Exhausted state
+                                if revenueCat.isPro {
+                                    // Pro: moon icon + timer
+                                    Image(systemName: "moon.fill")
+                                        .font(.system(size: 16, weight: .bold))
+                                    Text("Resting... Next Attack in \(formatTimeRemaining(timeUntilReset))")
+                                        .font(.system(size: 16, weight: .bold))
+                                } else {
+                                    // Free: crown icon + Go Pro text
+                                    Image(systemName: "crown.fill")
+                                        .font(.system(size: 18, weight: .bold))
+                                    Text("Go Pro for +2 Daily Attempts")
+                                        .font(.system(size: 18, weight: .bold))
+                                }
+                            } else {
+                                // Ready state: bolt icon + Attack Boss
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: 18, weight: .bold))
+                                Text("ATTACK BOSS")
+                                    .font(.system(size: 18, weight: .bold))
+                            }
                         }
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
@@ -190,8 +225,8 @@ struct PortalRaidView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
-                    .disabled(selectedBoss == nil || bossAttemptsRemaining <= 0)
-                    .opacity((selectedBoss == nil || bossAttemptsRemaining <= 0) ? 0.6 : 1.0)
+                    // Remove disabled state - button is always clickable
+                    .opacity(selectedBoss == nil ? 0.6 : 1.0)
                 }
                 
                 // Battle animation overlay
@@ -228,6 +263,27 @@ struct PortalRaidView: View {
                 onReturnHome: {
                     raidResultData = nil
                     dismiss()
+                    
+                    // Refresh progress manager and boss attempts in background
+                    Task {
+                        await progressManager.refreshProgress()
+                        
+                        // Also refresh boss attempts from database
+                        guard let session = try? await SupabaseManager.shared.client.auth.session else {
+                            return
+                        }
+                        let userId = session.user.id
+                        let isPro = await MainActor.run { revenueCat.isPro }
+                        
+                        do {
+                            let remainingBossAttempts = try await SupabaseManager.shared.getRemainingBossAttempts(userId: userId, isPro: isPro)
+                            await MainActor.run {
+                                bossAttemptsRemaining = remainingBossAttempts
+                            }
+                        } catch {
+                            print("Failed to refresh boss attempts: \(error)")
+                        }
+                    }
                 }
             )
             .environmentObject(progressManager)
@@ -241,7 +297,32 @@ struct PortalRaidView: View {
         .onAppear {
             // Content appearance is now handled in loadData() after data loads
             // This ensures smooth fade-in after data is ready
+            // Portal attempts are always fetched fresh in loadData(), no need to refresh here
+            
+            // Start timer if Pro user has exhausted attempts
+            startTimer()
         }
+        .onDisappear {
+            // Stop timer when view disappears
+            stopTimer()
+        }
+        .onChange(of: bossAttemptsRemaining) { oldValue, newValue in
+            // Restart timer when attempts change (e.g., exhausted or refreshed)
+            if revenueCat.isPro && newValue <= 0 {
+                startTimer()
+            } else {
+                stopTimer()
+            }
+        }
+        .onChange(of: revenueCat.isPro) { oldValue, newValue in
+            // Restart timer when Pro status changes
+            if newValue && bossAttemptsRemaining <= 0 {
+                startTimer()
+            } else {
+                stopTimer()
+            }
+        }
+        .toast(errorManager: errorManager)
     }
     
     // MARK: - Data Loading
@@ -252,7 +333,8 @@ struct PortalRaidView: View {
             await MainActor.run {
                 availableBosses = cachedBosses
                 bossProgress = cachedProgress
-                portalAttempts = cachedAttempts
+                // DON'T use cached attempts - always fetch fresh portal attempts from database
+                // portalAttempts will be set after fetching fresh data
                 // Note: bossAttemptsRemaining will be loaded from database
                 isLoading = false // Hide loading immediately
                 contentAppeared = true
@@ -331,13 +413,30 @@ struct PortalRaidView: View {
             
             // Process results
             let completedBossIds = Set(allUserProgress.filter { $0.completed }.map { $0.portalBossId })
-            let bossesToSelectFrom = allBosses.filter { !completedBossIds.contains($0.id) }
             
-            let selectedBosses = PortalService.generateAvailablePortals(
-                userLevel: progress.currentLevel,
-                userRank: progress.currentRank,
-                allBosses: bossesToSelectFrom
-            )
+            // Separate bosses into: weakened (have progress but not completed) and new (no progress)
+            let weakenedBossIds = Set(allUserProgress.filter { !$0.completed && $0.currentDamage > 0 }.map { $0.portalBossId })
+            let weakenedBosses = allBosses.filter { weakenedBossIds.contains($0.id) }
+            let newBosses = allBosses.filter { !completedBossIds.contains($0.id) && !weakenedBossIds.contains($0.id) }
+            
+            // Always include all weakened bosses first
+            var selectedBosses: [PortalBoss] = []
+            selectedBosses.append(contentsOf: weakenedBosses)
+            
+            // Fill remaining slots with new bosses using existing logic
+            let remainingSlots = max(0, 5 - selectedBosses.count)
+            if remainingSlots > 0 {
+                let additionalBosses = PortalService.generateAvailablePortals(
+                    userLevel: progress.currentLevel,
+                    userRank: progress.currentRank,
+                    allBosses: newBosses
+                )
+                // Take only what we need to fill remaining slots
+                selectedBosses.append(contentsOf: Array(additionalBosses.prefix(remainingSlots)))
+            }
+            
+            // Limit to 5 bosses total (in case we have more than 5 weakened bosses)
+            selectedBosses = Array(selectedBosses.prefix(5))
             
             // Build progress map efficiently
             var progressMap: [UUID: PortalRaidProgress] = [:]
@@ -374,6 +473,7 @@ struct PortalRaidView: View {
                 availableBosses = selectedBosses
                 bossProgress = progressMap
                 portalAttempts = fetchedAttempts
+                bossAttemptsRemaining = remainingBossAttempts  // ← FIX: Actually use the fetched value!
                 isLoading = false
                 
                 // Trigger fade-in animation if not already appeared
@@ -423,8 +523,7 @@ struct PortalRaidView: View {
     
     private func startRaid() {
         guard let boss = selectedBoss,
-              let progress = bossProgress[boss.id],
-              portalAttempts > 0 else {
+              let progress = bossProgress[boss.id] else {
             return
         }
         
@@ -436,7 +535,25 @@ struct PortalRaidView: View {
             let userId = session.user.id
             let isPro = await MainActor.run { revenueCat.isPro }
             
-            // Check if user can attempt boss
+            // Fetch fresh portal attempts from database (don't trust local state)
+            do {
+                let freshPortalAttempts = try await SupabaseManager.shared.getPortalAttempts(userId: userId)
+                await MainActor.run {
+                    portalAttempts = freshPortalAttempts
+                    cachedAttempts = freshPortalAttempts
+                }
+                
+                // Check portal attempts from fresh database value
+                guard freshPortalAttempts > 0 else {
+                    // No portal attempts remaining
+                    return
+                }
+            } catch {
+                print("Failed to fetch portal attempts: \(error)")
+                return
+            }
+            
+            // Check if user can attempt boss (daily boss attempts)
             let canAttempt = try await SupabaseManager.shared.canAttemptBoss(userId: userId, isPro: isPro)
             
             if !canAttempt {
@@ -449,6 +566,9 @@ struct PortalRaidView: View {
             
             // User has attempts remaining, proceed with battle
             await MainActor.run {
+                // Optimistically decrement attempts for instant UI feedback
+                bossAttemptsRemaining = max(0, bossAttemptsRemaining - 1)
+                
                 let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
                 impactFeedback.impactOccurred()
                 
@@ -571,7 +691,89 @@ struct PortalRaidView: View {
                 showBattleAnimation = false
                 errorMessage = error.localizedDescription
             }
+            
+            // If battle failed, refresh boss attempts from database to revert optimistic update
+            Task {
+                guard let session = try? await SupabaseManager.shared.client.auth.session else {
+                    return
+                }
+                let userId = session.user.id
+                let isPro = await MainActor.run { revenueCat.isPro }
+                
+                do {
+                    let remainingBossAttempts = try await SupabaseManager.shared.getRemainingBossAttempts(userId: userId, isPro: isPro)
+                    await MainActor.run {
+                        bossAttemptsRemaining = remainingBossAttempts
+                    }
+                } catch {
+                    print("Failed to refresh boss attempts after error: \(error)")
+                }
+            }
         }
+    }
+    
+    // MARK: - Timer Functions
+    
+    /// Calculate time remaining until midnight (next reset)
+    private func calculateTimeUntilReset() -> TimeInterval {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        // Get tomorrow at midnight
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+              let midnight = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: tomorrow) else {
+            return 0
+        }
+        
+        return midnight.timeIntervalSince(now)
+    }
+    
+    /// Format time interval as HH:MM:SS
+    private func formatTimeRemaining(_ interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
+        let minutes = Int(interval) / 60 % 60
+        let seconds = Int(interval) % 60
+        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+    
+    /// Start the countdown timer (only for Pro users with exhausted attempts)
+    private func startTimer() {
+        // Stop existing timer if any
+        timerTask?.cancel()
+        
+        // Only start timer if Pro user and attempts exhausted
+        guard revenueCat.isPro && bossAttemptsRemaining <= 0 else {
+            return
+        }
+        
+        // Calculate initial time
+        timeUntilReset = calculateTimeUntilReset()
+        
+        // Start timer that updates every second
+        timerTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                
+                if Task.isCancelled { break }
+                
+                await MainActor.run {
+                    timeUntilReset = calculateTimeUntilReset()
+                    
+                    // If timer reached 0, refresh attempts from database
+                    if timeUntilReset <= 0 {
+                        Task {
+                            await loadData()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Stop the countdown timer
+    private func stopTimer() {
+        timerTask?.cancel()
+        timerTask = nil
     }
 }
 

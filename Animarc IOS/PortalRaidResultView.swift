@@ -467,82 +467,33 @@ struct PortalRaidResultView: View {
     
     private var actionButtons: some View {
         VStack(spacing: 12) {
-            if isBossDefeated {
-                // When boss is defeated: Only Return Home button with orange background
-                Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
-                    onReturnHome()
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "house.fill")
-                            .font(.system(size: 18, weight: .bold))
-                        Text("Return Home")
-                            .font(.system(size: 18, weight: .bold))
-                            .tracking(0.5)
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(hex: "#f49d25"), Color(hex: "#EA580C")],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
+            // Always show only Return Home button (same for both defeated and weakened states)
+            Button(action: {
+                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                impactFeedback.impactOccurred()
+                onReturnHome()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "house.fill")
+                        .font(.system(size: 18, weight: .bold))
+                    Text("Return Home")
+                        .font(.system(size: 18, weight: .bold))
+                        .tracking(0.5)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(
+                    LinearGradient(
+                        colors: [Color(hex: "#f49d25"), Color(hex: "#EA580C")],
+                        startPoint: .leading,
+                        endPoint: .trailing
                     )
-                    .cornerRadius(16)
-                    .shadow(color: Color(hex: "#B4640A"), radius: 0, x: 0, y: 4)
-                }
-                .buttonStyle(BattleButtonStyle())
-            } else {
-                // When boss is NOT defeated: Attack Again button + Return Home button
-                // Attack Again button
-                Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
-                    onAttackAgain()
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 18, weight: .bold))
-                        Text("ATTACK AGAIN")
-                            .font(.system(size: 18, weight: .bold))
-                            .tracking(0.5)
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(hex: "#f49d25"), Color(hex: "#EA580C")],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(16)
-                    .shadow(color: Color(hex: "#B4640A"), radius: 0, x: 0, y: 4)
-                }
-                .buttonStyle(BattleButtonStyle())
-                
-                // Return Home button
-                Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                    impactFeedback.impactOccurred()
-                    onReturnHome()
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "house.fill")
-                            .font(.system(size: 16))
-                        Text("Return Home")
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundColor(.white.opacity(0.6))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.clear)
-                }
+                )
+                .cornerRadius(16)
+                .shadow(color: Color(hex: "#B4640A"), radius: 0, x: 0, y: 4)
             }
+            .buttonStyle(BattleButtonStyle())
         }
     }
 }
