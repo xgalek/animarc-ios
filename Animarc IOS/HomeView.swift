@@ -29,12 +29,14 @@ struct HomeView: View {
     @State private var contentAppeared = false
     @State private var pendingNavigation: String? = nil
     @State private var showPaywall = false
+    @State private var showRatingPopup = false
     
     // Portal transition binding - controlled by MainTabView
     @Binding var showPortalTransition: Bool
     let onPortalTransitionComplete: (@escaping () -> Void) -> Void
     
     private let streakCelebrationKey = "lastStreakCelebrationShownDate"
+    private let hasShownRatingPopupKey = "hasShownRatingPopup"
     
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -270,6 +272,9 @@ struct HomeView: View {
                         // Otherwise check for item drop
                         if progressManager.pendingItemDrop != nil {
                             showItemDropModal = true
+                        } else {
+                            // If no item drop, check for rating popup
+                            checkAndShowRatingPopup()
                         }
                     }
                 }
@@ -287,6 +292,9 @@ struct HomeView: View {
                         // Check for item drop after rank up modal closes
                         if progressManager.pendingItemDrop != nil {
                             showItemDropModal = true
+                        } else {
+                            // If no item drop, check for rating popup
+                            checkAndShowRatingPopup()
                         }
                     }
                 }
@@ -297,6 +305,9 @@ struct HomeView: View {
                         // On dismiss, clear item drop
                         progressManager.pendingItemDrop = nil
                         showItemDropModal = false
+                        
+                        // After item drop modal closes, check if we should show rating popup
+                        checkAndShowRatingPopup()
                     }
                 }
             }
@@ -317,6 +328,21 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView()
+            }
+            .sheet(isPresented: $showRatingPopup) {
+                RatingRequestPopup(
+                    isPresented: $showRatingPopup,
+                    onYes: {
+                        // User clicked "5 Stars" - show App Store review
+                        StoreReviewManager.shared.requestReview()
+                        // Mark as shown so it doesn't appear again
+                        UserDefaults.standard.set(true, forKey: hasShownRatingPopupKey)
+                    },
+                    onNo: {
+                        // User clicked "No" - just mark as shown so it doesn't appear again
+                        UserDefaults.standard.set(true, forKey: hasShownRatingPopupKey)
+                    }
+                )
             }
         }
     }
@@ -359,6 +385,30 @@ struct HomeView: View {
         // If no level up or rank up, check for item drop
         if progressManager.pendingItemDrop != nil {
             showItemDropModal = true
+            return
+        }
+        
+        // If no rewards to show, check for rating popup
+        checkAndShowRatingPopup()
+    }
+    
+    private func checkAndShowRatingPopup() {
+        // Only show if:
+        // 1. No other modals are showing
+        // 2. User has completed at least one focus session
+        // 3. Haven't shown it before
+        guard !showLevelUpModal, 
+              !showRankUpModal, 
+              !showItemDropModal,
+              !showStreakCelebration,
+              progressManager.totalSessions > 0,
+              !UserDefaults.standard.bool(forKey: hasShownRatingPopupKey) else {
+            return
+        }
+        
+        // Small delay to ensure other modals are fully dismissed
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            showRatingPopup = true
         }
     }
     
