@@ -12,6 +12,7 @@ struct ProfileView: View {
     @EnvironmentObject var progressManager: UserProgressManager
     @StateObject private var appBlockingManager = AppBlockingManager.shared
     @StateObject private var revenueCat = RevenueCatManager.shared
+    @StateObject private var musicManager = FocusMusicManager.shared
     @State private var notificationsEnabled = true
     @State private var soundsEnabled = true
     @State private var selection = FamilyActivitySelection()
@@ -129,6 +130,42 @@ struct ProfileView: View {
                             }
                             .padding(.horizontal, 20)
                             .padding(.vertical, 16)
+                        }
+                        .background(Color(hex: "#374151"))
+                        .cornerRadius(15)
+                        .padding(.horizontal, 20)
+                        
+                        // Music Section
+                        Text("Music")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                        
+                        VStack(spacing: 0) {
+                            // Focus Music Toggle
+                            SettingsRow(
+                                icon: "headphones",
+                                title: "Focus Music",
+                                toggle: Binding(
+                                    get: { musicManager.focusMusicEnabled },
+                                    set: { musicManager.setFocusMusicEnabled($0) }
+                                )
+                            )
+                            
+                            Divider()
+                                .background(Color(hex: "#9CA3AF").opacity(0.3))
+                                .padding(.leading, 60)
+                            
+                            // Home Music Toggle
+                            SettingsRow(
+                                icon: "music.note",
+                                title: "Home Music",
+                                toggle: Binding(
+                                    get: { musicManager.homeMusicEnabled },
+                                    set: { musicManager.setHomeMusicEnabled($0) }
+                                )
+                            )
                         }
                         .background(Color(hex: "#374151"))
                         .cornerRadius(15)

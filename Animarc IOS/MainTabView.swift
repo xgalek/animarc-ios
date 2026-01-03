@@ -35,6 +35,7 @@ extension UIColor {
 
 struct MainTabView: View {
     @EnvironmentObject var progressManager: UserProgressManager
+    @StateObject private var musicManager = FocusMusicManager.shared
     
     // Portal transition state - shared with HomeView
     @State private var showPortalTransition = false
@@ -101,6 +102,25 @@ struct MainTabView: View {
                     }
             }
             .tint(.white)
+            .onAppear {
+                // Start home music when MainTabView appears (user is in main app)
+                // This ensures music plays across all tabs (Home, Character, Stats, Settings)
+                if musicManager.homeMusicEnabled {
+                    musicManager.startHomeMusic()
+                }
+            }
+            .onDisappear {
+                // Stop home music when leaving MainTabView (e.g., going to focus session)
+                musicManager.stopHomeMusic()
+            }
+            .onChange(of: musicManager.homeMusicEnabled) { _, enabled in
+                // Respond to toggle changes in settings
+                if enabled {
+                    musicManager.startHomeMusic()
+                } else {
+                    musicManager.stopHomeMusic()
+                }
+            }
             
             // Portal transition overlay - covers everything including tab bar
             if showPortalTransition {

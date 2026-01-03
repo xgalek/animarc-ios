@@ -14,6 +14,7 @@ struct HomeView: View {
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var quoteManager = QuoteManager.shared
     @StateObject private var revenueCat = RevenueCatManager.shared
+    @StateObject private var musicManager = FocusMusicManager.shared
     @State private var navigationPath = NavigationPath()
     @State private var showLevelUpModal = false
     @State private var showRankUpModal = false
@@ -146,7 +147,8 @@ struct HomeView: View {
                 VStack(spacing: 0) {
                     // Motivational quote
                     Text(currentQuote)
-                        .font(.title3)
+                        .font(.system(size: 20, weight: .regular, design: .serif))
+                        .italic()
                         .foregroundColor(.white)
                         .multilineTextAlignment(.leading)
                         .padding(.horizontal, 30)
@@ -213,6 +215,12 @@ struct HomeView: View {
                 // Trigger smooth fade-in animation for all elements
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     contentAppeared = true
+                }
+                
+                // Restart home music when returning to homepage (e.g., after exiting reward/stats screen)
+                // This ensures music plays after focus session ends and user returns from RewardView
+                if musicManager.homeMusicEnabled && !musicManager.homeMusicPlaying {
+                    musicManager.startHomeMusic()
                 }
                 
                 // Check for pending rewards when view appears (including when returning from RewardView)
@@ -1452,6 +1460,7 @@ struct FocusConfigurationModal: View {
     @State private var focusSettings = FocusSessionSettings.load()
     @StateObject private var appBlockingManager = AppBlockingManager.shared
     @StateObject private var revenueCat = RevenueCatManager.shared
+    @StateObject private var musicManager = FocusMusicManager.shared
     @State private var showPaywall = false
     // Note: FamilyActivityPicker kept commented out in FocusConfigurationModal
     // Users configure allowed apps in Settings/Profile instead
@@ -1674,6 +1683,10 @@ struct FocusConfigurationModal: View {
                     // Start session button
                     Button(action: {
                         focusSettings.save()
+                        
+                        // Pause home music when starting focus session (before transition)
+                        musicManager.pauseHomeMusic()
+                        
                         // Set pending navigation destination
                         pendingNavigation = "FocusSession"
                         

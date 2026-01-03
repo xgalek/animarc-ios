@@ -16,6 +16,7 @@ struct FocusSessionView: View {
     @Binding var navigationPath: NavigationPath
     @EnvironmentObject var progressManager: UserProgressManager
     @StateObject private var appBlockingManager = AppBlockingManager.shared
+    @StateObject private var musicManager = FocusMusicManager.shared
     @Environment(\.dismiss) var dismiss
     @State private var settings: FocusSessionSettings = FocusSessionSettings.load()
     @State private var elapsedTime: Int = 0 // For stopwatch mode (counts up)
@@ -27,6 +28,7 @@ struct FocusSessionView: View {
     @State private var blockingError: String?
     @State private var showBlockingError = false
     @State private var showEndConfirmation = false
+    @State private var showMusicSheet = false
     @AppStorage("KeepScreenOnDuringFocus") private var keepScreenOn: Bool = true
     
     // Portal entry animation - starts fully black, fades to reveal the world
@@ -45,25 +47,20 @@ struct FocusSessionView: View {
             VStack(spacing: 0) {
                 // Top Section
                 HStack {
-                    // Back button
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
-                    .padding(.leading, 20)
-                    .padding(.top, 20)
-                    .allowsHitTesting(true)
+                    // Spacer to balance the music button
+                    Color.clear
+                        .frame(width: 44, height: 44)
+                        .padding(.leading, 20)
+                        .padding(.top, 20)
                     
                     Spacer()
                     
                     // Timer display
                     VStack(spacing: 8) {
                         Text(formattedTime)
-                            .font(.system(size: 48, weight: .bold, design: .rounded))
+                            .font(.custom("Poppins-ExtraBold", size: 80))
                             .foregroundColor(.white)
+                            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
                         
                         // Phase indicator for Pomodoro
                         if settings.mode == .pomodoro {
@@ -82,11 +79,11 @@ struct FocusSessionView: View {
                             }
                         }
                     }
-                    .padding(.top, 20)
+                    .padding(.top, 90)
                     
                     Spacer()
                     
-                    // Spacer to balance the back button
+                    // Spacer to balance the music button
                     Color.clear
                         .frame(width: 44, height: 44)
                         .padding(.trailing, 20)
@@ -109,6 +106,41 @@ struct FocusSessionView: View {
                 .onTapGesture {
                     showEndConfirmation = true
                 }
+            
+            // Music note button - Top layer with circular background
+            VStack {
+                HStack {
+                    Button(action: {
+                        showMusicSheet = true
+                    }) {
+                        ZStack {
+                            // Circular background with blur effect
+                            Circle()
+                                .fill(Color.black.opacity(0.5))
+                                .frame(width: 50, height: 50)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                )
+                            
+                            // Music note icon
+                            Image(systemName: "music.note")
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .padding(.leading, 20)
+                    .padding(.top, 20)
+                    
+                    Spacer()
+                }
+                
+                Spacer()
+            }
+            .allowsHitTesting(true)
+            .zIndex(10) // Ensure it's on top layer
             
             // End Session Confirmation Popup
             if showEndConfirmation {
@@ -204,6 +236,12 @@ struct FocusSessionView: View {
             startTimer()
             startAppBlocking()
             
+            // Home music is already paused when user clicked "Start session" button
+            // Start focus music if enabled (home music was paused earlier in FocusConfigurationModal)
+            if musicManager.focusMusicEnabled {
+                musicManager.startFocusMusic()
+            }
+            
             // Portal fade-reveal animation - emerge into the parallax world
             // Haptic feedback when emerging
             let haptic = UIImpactFeedbackGenerator(style: .light)
@@ -219,6 +257,14 @@ struct FocusSessionView: View {
         .onDisappear {
             stopTimer()
             stopAppBlocking()
+            
+            // Stop focus music when session ends
+            musicManager.stopFocusMusic()
+        }
+        .sheet(isPresented: $showMusicSheet) {
+            FocusMusicControlSheet()
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
         .alert("Blocking Error", isPresented: $showBlockingError) {
             Button("OK") {
@@ -387,5 +433,104 @@ struct FocusSessionView: View {
     NavigationStack {
         FocusSessionView(navigationPath: .constant(NavigationPath()))
             .environmentObject(UserProgressManager.shared)
+    }
+}
+
+// MARK: - Focus Music Control Sheet
+
+struct FocusMusicControlSheet: View {
+    @StateObject private var musicManager = FocusMusicManager.shared
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        ZStack {
+            // Background
+            Color(hex: "#1A2332")
+                .ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                // Header: Focus Music (left) + Toggle (right)
+                HStack {
+                    Text("Focus Music")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Toggle("", isOn: Binding(
+                        get: { musicManager.focusMusicEnabled },
+                        set: { enabled in
+                            musicManager.setFocusMusicEnabled(enabled)
+                            if enabled {
+                                musicManager.startFocusMusic()
+                            }
+                        }
+                    ))
+                    .labelsHidden()
+                    .tint(Color(hex: "#FF9500"))
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                
+                // Middle Section: Currently Playing + Controls
+                VStack(spacing: 20) {
+                    // Currently Playing Section
+                    VStack(spacing: 8) {
+                        Text("Currently Playing:")
+                            .font(.subheadline)
+                            .foregroundColor(musicManager.focusMusicEnabled ? Color(hex: "#9CA3AF") : Color(hex: "#6B7280"))
+                        
+                        if let currentTrack = musicManager.focusMusicTrack {
+                            Text(currentTrack.name)
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(musicManager.focusMusicEnabled ? .white : Color(hex: "#6B7280"))
+                        } else {
+                            Text("No track selected")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(Color(hex: "#6B7280"))
+                        }
+                    }
+                    .opacity(musicManager.focusMusicEnabled ? 1.0 : 0.5)
+                    
+                    // Control Buttons: Play/Pause and Next
+                    HStack(spacing: 40) {
+                        // Play/Pause Button
+                        Button(action: {
+                            if musicManager.focusMusicPlaying {
+                                musicManager.pauseFocusMusic()
+                            } else {
+                                if musicManager.focusMusicEnabled {
+                                    musicManager.resumeFocusMusic()
+                                } else {
+                                    musicManager.startFocusMusic()
+                                }
+                            }
+                        }) {
+                            Image(systemName: musicManager.focusMusicPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                .font(.system(size: 50))
+                                .foregroundColor(musicManager.focusMusicEnabled ? Color(hex: "#FF9500") : Color(hex: "#6B7280"))
+                        }
+                        .disabled(!musicManager.focusMusicEnabled)
+                        
+                        // Next Button
+                        Button(action: {
+                            musicManager.nextFocusMusicTrack()
+                        }) {
+                            Image(systemName: "forward.fill")
+                                .font(.system(size: 30))
+                                .foregroundColor(musicManager.focusMusicEnabled ? .white : Color(hex: "#6B7280"))
+                                .padding(12)
+                                .background(musicManager.focusMusicEnabled ? Color(hex: "#374151") : Color(hex: "#2A2A2A"))
+                                .clipShape(Circle())
+                        }
+                        .disabled(!musicManager.focusMusicEnabled)
+                    }
+                    .padding(.top, 8)
+                }
+                .padding(.horizontal, 20)
+                
+                Spacer()
+            }
+        }
     }
 }
