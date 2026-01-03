@@ -84,7 +84,7 @@ struct MainTabView: View {
                 CharacterView()
                     .environmentObject(progressManager)
                     .tabItem {
-                        Label("Character", systemImage: "shield.fill")
+                        Label("Raids", systemImage: "shield.fill")
                     }
                 
                 // Stats Tab

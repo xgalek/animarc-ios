@@ -146,7 +146,7 @@ struct HomeView: View {
                 // Center Content - Vertically Centered
                 VStack(spacing: 0) {
                     // Motivational quote
-                    Text(currentQuote)
+                    Text("\"\(currentQuote)\"")
                         .font(.system(size: 20, weight: .regular, design: .serif))
                         .italic()
                         .foregroundColor(.white)
