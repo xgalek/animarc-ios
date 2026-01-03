@@ -16,6 +16,13 @@ struct Animarc_IOSApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
     
+    init() {
+        // Validate configuration on app startup (only in debug to catch missing config early)
+        #if DEBUG
+        AppConfig.validateConfiguration()
+        #endif
+    }
+    
     var body: some Scene {
         WindowGroup {
             Group {

@@ -23,7 +23,9 @@ final class RevenueCatManager: NSObject, ObservableObject {
     @Published var errorMessage: String?
     
     // MARK: - Configuration
-    private let apiKey: String = "appl_OCBzZIPDsWduwvkbMGWGizCBIzF"
+    private var apiKey: String {
+        return AppConfig.revenueCatAPIKey
+    }
     
     // MARK: - Entitlement Identifier
     let proEntitlementIdentifier = "Animarc Pro"

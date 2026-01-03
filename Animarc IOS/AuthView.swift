@@ -317,7 +317,7 @@ struct AuthView: View {
         
         // Configure Google Sign In with the hashed nonce
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(
-            clientID: "443436294835-qgd6v7m2nov13rl2624eala6inr0scp1.apps.googleusercontent.com"
+            clientID: AppConfig.googleClientID
         )
         
         // Get root view controller

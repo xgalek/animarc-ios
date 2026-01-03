@@ -32,11 +32,15 @@ final class SupabaseManager: ObservableObject {
     
     // MARK: - Configuration
     
-    /// Supabase project URL
-    private static let supabaseURL = URL(string: "https://girifmitgbaxiaktjckz.supabase.co")!
+    /// Supabase project URL (loaded from secure config)
+    private static var supabaseURL: URL {
+        return AppConfig.supabaseURL
+    }
     
-    /// Supabase anonymous key for public access
-    private static let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpcmlmbWl0Z2JheGlha3RqY2t6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5MTc0MDEsImV4cCI6MjA3NTQ5MzQwMX0.XDMQp7h_WaP1OwGSfn8lPksvRjFq5KiQoySf2VPTyPo"
+    /// Supabase anonymous key (loaded from secure config)
+    private static var supabaseAnonKey: String {
+        return AppConfig.supabaseAnonKey
+    }
     
     // MARK: - Initialization
     

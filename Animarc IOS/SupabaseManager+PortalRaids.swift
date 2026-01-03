@@ -151,12 +151,19 @@ extension SupabaseManager {
     
     /// Update progress after raid attempt
     /// - Parameters:
+    ///   - userId: The user's UUID (for authorization check)
     ///   - progressId: Progress record UUID
     ///   - newDamage: New total damage value
     ///   - newPercent: New progress percentage
     /// - Returns: Updated PortalRaidProgress
-    func updatePortalProgress(progressId: UUID, newDamage: Int, newPercent: Double) async throws -> PortalRaidProgress {
+    func updatePortalProgress(userId: UUID, progressId: UUID, newDamage: Int, newPercent: Double) async throws -> PortalRaidProgress {
         return try await withRetry {
+            // First verify this progress belongs to the user (authorization check)
+            let existing = try await self.fetchPortalProgress(userId: userId)
+            guard existing.contains(where: { $0.id == progressId }) else {
+                throw GamificationError.userProgressNotFound // Or create an unauthorized error
+            }
+            
             struct ProgressUpdate: Codable {
                 let current_damage: Int
                 let progress_percent: Double
@@ -169,9 +176,11 @@ extension SupabaseManager {
                 updated_at: Date()
             )
             
+            // Update with both user_id and id filters for security
             let response: [PortalRaidProgress] = try await self.client
                 .from("portal_progress")
                 .update(update)
+                .eq("user_id", value: userId.uuidString)
                 .eq("id", value: progressId.uuidString)
                 .select()
                 .execute()
@@ -186,10 +195,18 @@ extension SupabaseManager {
     }
     
     /// Mark boss as defeated (complete portal)
-    /// - Parameter progressId: Progress record UUID
+    /// - Parameters:
+    ///   - userId: The user's UUID (for authorization check)
+    ///   - progressId: Progress record UUID
     /// - Returns: Updated PortalRaidProgress
-    func completePortalBoss(progressId: UUID) async throws -> PortalRaidProgress {
+    func completePortalBoss(userId: UUID, progressId: UUID) async throws -> PortalRaidProgress {
         return try await withRetry {
+            // First verify this progress belongs to the user (authorization check)
+            let existing = try await self.fetchPortalProgress(userId: userId)
+            guard existing.contains(where: { $0.id == progressId }) else {
+                throw GamificationError.userProgressNotFound
+            }
+            
             struct CompletionUpdate: Codable {
                 let completed: Bool
                 let completed_at: Date
@@ -202,9 +219,11 @@ extension SupabaseManager {
                 updated_at: Date()
             )
             
+            // Update with both user_id and id filters for security
             let response: [PortalRaidProgress] = try await self.client
                 .from("portal_progress")
                 .update(update)
+                .eq("user_id", value: userId.uuidString)
                 .eq("id", value: progressId.uuidString)
                 .select()
                 .execute()

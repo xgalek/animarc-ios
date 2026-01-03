@@ -339,7 +339,7 @@ struct OnboardingPage4_Auth: View {
         let hashedNonce = sha256(rawNonce)
         
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(
-            clientID: "443436294835-qgd6v7m2nov13rl2624eala6inr0scp1.apps.googleusercontent.com"
+            clientID: AppConfig.googleClientID
         )
         
         guard let rootViewController = getRootViewController() else {

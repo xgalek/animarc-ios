@@ -438,6 +438,7 @@
 				DEVELOPMENT_TEAM = YHDYFCZ37W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				GOOGLE_CLIENT_ID = "443436294835-qgd6v7m2nov13rl2624eala6inr0scp1.apps.googleusercontent.com";
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Animarc;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -452,6 +453,9 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.animarc.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REVENUECAT_API_KEY = appl_OCBzZIPDsWduwvkbMGWGizCBIzF;
+				SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpcmlmbWl0Z2JheGlha3RqY2t6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5MTc0MDEsImV4cCI6MjA3NTQ5MzQwMX0.XDMQp7h_WaP1OwGSfn8lPksvRjFq5KiQoySf2VPTyPo;
+				SUPABASE_URL = "https://girifmitgbaxiaktjckz.supabase.co";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -469,6 +473,7 @@
 				DEVELOPMENT_TEAM = YHDYFCZ37W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				GOOGLE_CLIENT_ID = "443436294835-qgd6v7m2nov13rl2624eala6inr0scp1.apps.googleusercontent.com";
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Animarc;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -483,6 +488,9 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.animarc.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REVENUECAT_API_KEY = appl_OCBzZIPDsWduwvkbMGWGizCBIzF;
+				SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpcmlmbWl0Z2JheGlha3RqY2t6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5MTc0MDEsImV4cCI6MjA3NTQ5MzQwMX0.XDMQp7h_WaP1OwGSfn8lPksvRjFq5KiQoySf2VPTyPo;
+				SUPABASE_URL = "https://girifmitgbaxiaktjckz.supabase.co";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

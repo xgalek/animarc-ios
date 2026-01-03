@@ -611,6 +611,7 @@ struct PortalRaidView: View {
             updatedProgress.applyDamage(result.damageDealt)
             
             let savedProgress = try await SupabaseManager.shared.updatePortalProgress(
+                userId: userId,
                 progressId: updatedProgress.id,
                 newDamage: updatedProgress.currentDamage,
                 newPercent: updatedProgress.progressPercent
@@ -619,7 +620,7 @@ struct PortalRaidView: View {
             // If boss defeated, mark as completed and award rewards
             var rewards: (xp: Int, gold: Int)? = nil
             if result.bossDefeated {
-                _ = try await SupabaseManager.shared.completePortalBoss(progressId: savedProgress.id)
+                _ = try await SupabaseManager.shared.completePortalBoss(userId: userId, progressId: savedProgress.id)
                 
                 let bossRewards = PortalService.calculateBossRewards(
                     bossRank: raidData.boss.rank,
