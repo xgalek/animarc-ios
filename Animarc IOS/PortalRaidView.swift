@@ -187,10 +187,17 @@ struct PortalRaidView: View {
                         }
                     }) {
                         HStack(spacing: 8) {
-                            if bossAttemptsRemaining <= 0 {
-                                // Exhausted state
+                            // Always check attempts first - don't show resting state if attempts > 0
+                            if bossAttemptsRemaining > 0 {
+                                // Ready state: bolt icon + Attack Boss
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: 18, weight: .bold))
+                                Text("ATTACK BOSS")
+                                    .font(.system(size: 18, weight: .bold))
+                            } else {
+                                // Exhausted state (bossAttemptsRemaining <= 0)
                                 if revenueCat.isPro {
-                                    // Pro: moon icon + timer
+                                    // Pro: moon icon + timer (only show if timer is actually running)
                                     Image(systemName: "moon.fill")
                                         .font(.system(size: 16, weight: .bold))
                                     Text("Resting... Next Attack in \(formatTimeRemaining(timeUntilReset))")
@@ -202,12 +209,6 @@ struct PortalRaidView: View {
                                     Text("Go Pro for +2 Daily Attempts")
                                         .font(.system(size: 18, weight: .bold))
                                 }
-                            } else {
-                                // Ready state: bolt icon + Attack Boss
-                                Image(systemName: "bolt.fill")
-                                    .font(.system(size: 18, weight: .bold))
-                                Text("ATTACK BOSS")
-                                    .font(.system(size: 18, weight: .bold))
                             }
                         }
                         .foregroundColor(.black)
@@ -299,8 +300,8 @@ struct PortalRaidView: View {
             // This ensures smooth fade-in after data is ready
             // Portal attempts are always fetched fresh in loadData(), no need to refresh here
             
-            // Start timer if Pro user has exhausted attempts
-            startTimer()
+            // Start timer if Pro user has exhausted attempts (will be handled by onChange handlers)
+            // Don't start timer here - let onChange(of: bossAttemptsRemaining) handle it after data loads
         }
         .onDisappear {
             // Stop timer when view disappears
@@ -315,11 +316,13 @@ struct PortalRaidView: View {
             }
         }
         .onChange(of: revenueCat.isPro) { oldValue, newValue in
-            // Restart timer when Pro status changes
-            if newValue && bossAttemptsRemaining <= 0 {
-                startTimer()
-            } else {
-                stopTimer()
+            // When Pro status changes, refresh attempts and update timer accordingly
+            Task {
+                // Refresh attempts from database
+                await loadData()
+                
+                // Timer will be updated by the onChange(of: bossAttemptsRemaining) handler
+                // after loadData() updates bossAttemptsRemaining
             }
         }
         .toast(errorManager: errorManager)
@@ -775,6 +778,8 @@ struct PortalRaidView: View {
     private func stopTimer() {
         timerTask?.cancel()
         timerTask = nil
+        // Reset time until reset to ensure UI doesn't show stale timer values
+        timeUntilReset = 0
     }
 }
 
