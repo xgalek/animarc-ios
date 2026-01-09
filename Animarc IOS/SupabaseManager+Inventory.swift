@@ -355,4 +355,3 @@ extension SupabaseManager {
         return newItem
     }
 }
-

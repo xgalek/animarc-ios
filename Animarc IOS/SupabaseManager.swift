@@ -314,4 +314,3 @@ extension SupabaseManager {
         }
     }
 }
-

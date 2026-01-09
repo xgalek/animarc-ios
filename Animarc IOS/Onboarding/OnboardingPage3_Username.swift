@@ -178,6 +178,9 @@ struct OnboardingPage3_Username: View {
         
         let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
         
+        // Dismiss keyboard before navigating
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        
         // Haptic feedback
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
         impactFeedback.impactOccurred()
@@ -185,9 +188,12 @@ struct OnboardingPage3_Username: View {
         // Store username temporarily
         savedUsername = trimmedUsername
         
-        // Navigate to Page 4 (AuthView)
-        withAnimation {
-            currentPage = 3
+        // Small delay to ensure keyboard dismisses smoothly before navigation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            // Navigate to Page 4 (AuthView)
+            withAnimation {
+                currentPage = 3
+            }
         }
     }
 }

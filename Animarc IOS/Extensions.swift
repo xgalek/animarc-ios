@@ -472,4 +472,3 @@ struct AnimatedXPProgressBar: View {
         }
     }
 }
-
