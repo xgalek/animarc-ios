@@ -534,7 +534,7 @@ struct CharacterView: View {
                     }
                 )
                 .environmentObject(progressManager)
-                .presentationDetents([.fraction(0.6)])
+                .presentationDetents([.fraction(0.7)])
                 .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showInventoryPopup) {
@@ -1581,96 +1581,121 @@ struct ItemDetailsPopup: View {
             Color(hex: "#1A2332")
                 .ignoresSafeArea()
             
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
+                // Item image (compact)
                 AsyncImage(url: URL(string: item.iconUrl)) { phase in
                     switch phase {
                     case .empty:
                         ProgressView()
                             .tint(.white)
+                            .frame(width: 100, height: 100)
                     case .success(let image):
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 150, height: 150)
+                            .frame(width: 100, height: 100)
                     case .failure:
                         Image(systemName: "questionmark.circle")
-                            .font(.system(size: 100))
+                            .font(.system(size: 60))
                             .foregroundColor(Color(hex: "#9CA3AF"))
+                            .frame(width: 100, height: 100)
                     @unknown default:
                         EmptyView()
                     }
                 }
-                .padding(.top, 50)
+                .padding(.top, 24)
                 
+                // Item name
                 Text(item.name)
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
                 
-                Text("\(item.rolledRank)-Rank")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(item.rankColor)
-                
-                Text("+\(item.statValue) \(item.statType)")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(Color(hex: "#374151"))
-                    .cornerRadius(12)
+                // Rank + Stat in same row as pill badges
+                HStack(spacing: 10) {
+                    Text("\(item.rolledRank)-RANK")
+                        .font(.system(size: 13, weight: .bold))
+                        .tracking(0.5)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(item.rankColor.opacity(0.2))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(item.rankColor.opacity(0.4), lineWidth: 1)
+                        )
+                        .cornerRadius(10)
+                    
+                    Text("+\(item.statValue) \(item.statType.uppercased())")
+                        .font(.system(size: 13, weight: .bold))
+                        .tracking(0.5)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color(hex: "#374151"))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        )
+                        .cornerRadius(10)
+                }
                 
                 Spacer()
                 
-                // Bottom button row
-                VStack(spacing: 10) {
-                    HStack(spacing: 12) {
-                        // Close button
-                        Button(action: { onClose() }) {
-                            Text("Close")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(Color(hex: "#374151"))
-                                .cornerRadius(12)
-                        }
-                        
-                        // Equip/Unequip button
-                        Button(action: {
-                            if item.equipped { onUnequip() } else { onEquip() }
-                        }) {
-                            Text(item.equipped ? "Unequip" : "Equip")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(item.equipped ? Color(hex: "#EF4444") : Color(hex: "#6B46C1"))
-                                .cornerRadius(12)
-                        }
+                // Sell button (prominent, gold)
+                Button(action: { showSellConfirmation = true }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "dollarsign.circle.fill")
+                            .font(.system(size: 16))
+                        Text("SELL FOR \(item.sellPrice) GOLD")
+                            .font(.system(size: 15, weight: .heavy))
+                            .tracking(0.5)
+                    }
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color(hex: "#F59E0B"))
+                    .cornerRadius(16)
+                    .shadow(color: Color(hex: "#F59E0B").opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .padding(.horizontal, 20)
+                
+                // Equip/Unequip + Close row
+                HStack(spacing: 12) {
+                    Button(action: {
+                        if item.equipped { onUnequip() } else { onEquip() }
+                    }) {
+                        Text(item.equipped ? "UNEQUIP" : "EQUIP")
+                            .font(.system(size: 14, weight: .bold))
+                            .tracking(0.5)
+                            .foregroundColor(item.equipped ? Color(hex: "#EF4444") : Color(hex: "#A78BFA"))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.clear)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(
+                                        item.equipped ? Color(hex: "#EF4444").opacity(0.4) : Color(hex: "#A78BFA").opacity(0.3),
+                                        lineWidth: 1.5
+                                    )
+                            )
+                            .cornerRadius(14)
                     }
                     
-                    // Sell button
-                    Button(action: { showSellConfirmation = true }) {
-                        HStack(spacing: 6) {
-                            Text("Sell")
-                                .font(.system(size: 15, weight: .semibold))
-                            
-                            Text("\(item.sellPrice)")
-                                .font(.system(size: 15, weight: .bold))
-                            
-                            Image(systemName: "dollarsign.circle.fill")
-                                .font(.system(size: 14))
-                        }
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color(hex: "#F59E0B"))
-                        .cornerRadius(12)
+                    Button(action: { onClose() }) {
+                        Text("CLOSE")
+                            .font(.system(size: 14, weight: .bold))
+                            .tracking(0.5)
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(14)
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 30)
+                .padding(.bottom, 24)
             }
         }
         .alert("Sell Item?", isPresented: $showSellConfirmation) {
