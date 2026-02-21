@@ -109,50 +109,38 @@ class PortalService {
         )
     }
     
-    // MARK: - Portal Selection
+    // MARK: - Map Progression
     
-    /// Generate available portals for user based on their rank
-    /// Returns 3 portals at user's rank + 2 portals at next rank (if available)
-    /// - Parameters:
-    ///   - userLevel: User's current level
-    ///   - userRank: User's current rank code (E, D, C, etc.)
-    ///   - allBosses: All available bosses from database
-    /// - Returns: Array of 5 PortalBoss objects
-    static func generateAvailablePortals(
-        userLevel: Int,
-        userRank: String,
-        allBosses: [PortalBoss]
-    ) -> [PortalBoss] {
-        // Filter bosses at user's rank
-        let currentRankBosses = allBosses.filter { $0.rank == userRank }
+    /// Determine the current boss (first non-completed boss in map order)
+    static func currentBoss(from bosses: [PortalBoss], completedIds: Set<UUID>) -> PortalBoss? {
+        return bosses.sorted(by: { $0.mapOrder < $1.mapOrder })
+            .first { !completedIds.contains($0.id) }
+    }
+    
+    /// Categorize bosses into defeated / current / locked for map display
+    static func categorizeBosses(
+        bosses: [PortalBoss],
+        completedIds: Set<UUID>
+    ) -> (defeated: [PortalBoss], current: PortalBoss?, locked: [PortalBoss]) {
+        let sorted = bosses.sorted { $0.mapOrder < $1.mapOrder }
+        var defeated: [PortalBoss] = []
+        var current: PortalBoss? = nil
+        var locked: [PortalBoss] = []
         
-        // Get next rank
-        let nextRank = getNextRank(userRank)
-        let nextRankBosses = nextRank != nil ? allBosses.filter { $0.rank == nextRank } : []
-        
-        // Select 3 from current rank, 2 from next rank
-        var selected: [PortalBoss] = []
-        
-        // Shuffle and take 3 from current rank
-        let shuffledCurrent = currentRankBosses.shuffled()
-        selected.append(contentsOf: Array(shuffledCurrent.prefix(3)))
-        
-        // Shuffle and take 2 from next rank (if available)
-        if !nextRankBosses.isEmpty {
-            let shuffledNext = nextRankBosses.shuffled()
-            selected.append(contentsOf: Array(shuffledNext.prefix(2)))
-        } else {
-            // If no next rank, fill with more current rank bosses
-            let remaining = shuffledCurrent.dropFirst(3).prefix(2)
-            selected.append(contentsOf: remaining)
+        for boss in sorted {
+            if completedIds.contains(boss.id) {
+                defeated.append(boss)
+            } else if current == nil {
+                current = boss
+            } else {
+                locked.append(boss)
+            }
         }
         
-        return Array(selected.prefix(5))
+        return (defeated, current, locked)
     }
     
     /// Get next rank after current rank
-    /// - Parameter currentRank: Current rank code
-    /// - Returns: Next rank code, or nil if at max rank
     static func getNextRank(_ currentRank: String) -> String? {
         let ranks = ["E", "D", "C", "B", "A", "S", "SS", "SSS"]
         guard let index = ranks.firstIndex(of: currentRank), index < ranks.count - 1 else {

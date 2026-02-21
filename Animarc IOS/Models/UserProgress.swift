@@ -30,6 +30,7 @@ struct UserProgress: Codable, Identifiable, Equatable {
     
     // Currency
     var gold: Int
+    var goldStatPointsPurchased: Int
     
     // Portal attempts
     var portalAttempts: Int?
@@ -53,6 +54,7 @@ struct UserProgress: Codable, Identifiable, Equatable {
         case statDefense = "stat_defense"
         case statSpeed = "stat_speed"
         case gold
+        case goldStatPointsPurchased = "gold_stat_points_purchased"
         case portalAttempts = "portal_attempts"
         case lastAttemptReset = "last_attempt_reset"
     }
@@ -77,7 +79,7 @@ struct UserProgress: Codable, Identifiable, Equatable {
         statDefense = try container.decode(Int.self, forKey: .statDefense)
         statSpeed = try container.decode(Int.self, forKey: .statSpeed)
         gold = try container.decode(Int.self, forKey: .gold)
-        // Portal attempts fields - default to 50 if missing or null (backward compatibility)
+        goldStatPointsPurchased = try container.decodeIfPresent(Int.self, forKey: .goldStatPointsPurchased) ?? 0
         portalAttempts = try container.decodeIfPresent(Int.self, forKey: .portalAttempts) ?? 50
         lastAttemptReset = try container.decodeIfPresent(Date.self, forKey: .lastAttemptReset)
     }
@@ -101,6 +103,7 @@ struct UserProgress: Codable, Identifiable, Equatable {
         statDefense: Int,
         statSpeed: Int,
         gold: Int,
+        goldStatPointsPurchased: Int = 0,
         portalAttempts: Int?,
         lastAttemptReset: Date?
     ) {
@@ -121,6 +124,7 @@ struct UserProgress: Codable, Identifiable, Equatable {
         self.statDefense = statDefense
         self.statSpeed = statSpeed
         self.gold = gold
+        self.goldStatPointsPurchased = goldStatPointsPurchased
         self.portalAttempts = portalAttempts
         self.lastAttemptReset = lastAttemptReset
     }
@@ -145,6 +149,7 @@ struct UserProgress: Codable, Identifiable, Equatable {
         try container.encode(statDefense, forKey: .statDefense)
         try container.encode(statSpeed, forKey: .statSpeed)
         try container.encode(gold, forKey: .gold)
+        try container.encode(goldStatPointsPurchased, forKey: .goldStatPointsPurchased)
         try container.encodeIfPresent(portalAttempts, forKey: .portalAttempts)
         try container.encodeIfPresent(lastAttemptReset, forKey: .lastAttemptReset)
     }
@@ -173,6 +178,7 @@ extension UserProgress {
             statDefense: 10,
             statSpeed: 10,
             gold: 0,
+            goldStatPointsPurchased: 0,
             portalAttempts: 50,
             lastAttemptReset: nil
         )

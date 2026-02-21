@@ -19,6 +19,8 @@ struct RewardView: View {
     @State private var hasError = false
     @State private var errorMessage = ""
     @State private var processingTimeout: Task<Void, Never>?
+    @State private var hasProcessed = false
+    @State private var inventoryFullMessage = false
     
     // Animation state variables for entrance animations
     @State private var campOpacity: Double = 0.0  // Start with black screen, fade in smoothly
@@ -54,9 +56,10 @@ struct RewardView: View {
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(.white)
                     }
+                    .disabled(isProcessing)
                     .padding(.top, 20)
                     .padding(.trailing, 20)
-                    .opacity(campOpacity) // Fade in with camp background
+                    .opacity(isProcessing ? 0 : campOpacity)
                 }
                 
                 if isProcessing {
@@ -166,6 +169,18 @@ struct RewardView: View {
                                     .disabled(isProcessing)
                                     .opacity(isProcessing ? 0.5 : continueButtonOpacity)
                                 }
+                                
+                                // Inventory full warning
+                                if inventoryFullMessage {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "shippingbox.fill")
+                                            .font(.system(size: 13))
+                                        Text("Inventory full! Sell items to earn drops.")
+                                            .font(.system(size: 13, weight: .medium))
+                                    }
+                                    .foregroundColor(Color(hex: "#F59E0B"))
+                                    .opacity(continueButtonOpacity)
+                                }
                             }
                             .padding(.horizontal, 30)
                         }
@@ -212,6 +227,9 @@ struct RewardView: View {
     // MARK: - Helper Functions
     
     private func processSessionReward() async {
+        guard !hasProcessed else { return }
+        hasProcessed = true
+        
         // Set timeout (10 seconds)
         processingTimeout = Task {
             try? await Task.sleep(nanoseconds: 10_000_000_000)
@@ -233,6 +251,7 @@ struct RewardView: View {
         // Check if XP award failed
         if sessionReward == nil {
             processingTimeout?.cancel()
+            hasProcessed = false
             await MainActor.run {
                 hasError = true
                 errorMessage = progressManager.errorMessage ?? "Failed to award XP. Your session was recorded but rewards couldn't be processed."
@@ -244,17 +263,23 @@ struct RewardView: View {
         // Try to drop item (checks eligibility internally) - non-critical
         if let userId = await getCurrentUserId() {
             do {
-                let isPro = await revenueCat.isPro
-                let droppedItem = try await SupabaseManager.shared.dropRandomItem(
-                    userId: userId,
-                    userRank: progressManager.currentRank,
-                    isPro: isPro
-                )
-                // Store in progressManager for celebration on HomeView
-                progressManager.pendingItemDrop = droppedItem
+                // Check if inventory is full before attempting drop
+                let currentInventory = try? await SupabaseManager.shared.fetchOrCreateInventory(userId: userId)
+                if (currentInventory?.items.count ?? 0) >= PortalInventory.maxItems {
+                    inventoryFullMessage = true
+                } else {
+                    let isPro = await revenueCat.isPro
+                    let droppedItem = try await SupabaseManager.shared.dropRandomItem(
+                        userId: userId,
+                        userRank: progressManager.currentRank,
+                        isPro: isPro
+                    )
+                    if let item = droppedItem {
+                        progressManager.pendingItemDrop = item
+                    }
+                }
             } catch {
                 print("Failed to drop item: \(error)")
-                // Non-critical error, don't show to user
             }
         }
         
@@ -266,6 +291,7 @@ struct RewardView: View {
         hasError = false
         errorMessage = ""
         isProcessing = true
+        hasProcessed = false
         await processSessionReward()
     }
     

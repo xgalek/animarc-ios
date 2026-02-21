@@ -87,6 +87,25 @@ extension PortalItem {
     var rankDisplayName: String {
         "\(rolledRank)-Rank"
     }
+    
+    /// Gold earned when selling this item, based on rank
+    var sellPrice: Int {
+        switch rolledRank {
+        case "E": return 5
+        case "D": return 15
+        case "C": return 40
+        case "B": return 80
+        case "A": return 150
+        case "S": return 300
+        default: return 5
+        }
+    }
+}
+
+// MARK: - Inventory Constants
+
+extension PortalInventory {
+    static let maxItems = 20
 }
 
 // MARK: - PortalItemConfig

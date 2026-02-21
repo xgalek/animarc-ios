@@ -65,6 +65,31 @@ final class FocusMusicManager: ObservableObject {
             name: "Cozy LoFi",
             filename: "cozy-lofi-background-music-457199"
         ),
+        FocusMusicTrack(
+            id: "lofi_dreams",
+            name: "LoFi Dreams",
+            filename: "lofidreams-lofi-background-music-336230"
+        ),
+        FocusMusicTrack(
+            id: "lofi_girl",
+            name: "LoFi Girl",
+            filename: "lofidreams-lofi-girl-lofi-ambient-music-365952"
+        ),
+        FocusMusicTrack(
+            id: "peaceful_piano",
+            name: "Peaceful Piano",
+            filename: "nickpanek-peaceful-piano-instrumental-for-studying-and-focus-232535"
+        ),
+        FocusMusicTrack(
+            id: "mountain_piano",
+            name: "Mountain Piano",
+            filename: "the_mountain-piano-background-141480"
+        ),
+        FocusMusicTrack(
+            id: "mountain_music",
+            name: "Mountain Music",
+            filename: "the_mountain-piano-background-music-487020"
+        ),
     ]
     
     // MARK: - Private Properties
@@ -274,6 +299,30 @@ final class FocusMusicManager: ObservableObject {
         }
         
         print("⏭️ FocusMusicManager: Switched to next track: \(nextTrack.name)")
+    }
+    
+    func previousFocusMusicTrack() {
+        guard let currentTrack = focusMusicTrack,
+              let currentIndex = availableTracks.firstIndex(where: { $0.id == currentTrack.id }) else {
+            if let lastTrack = availableTracks.last {
+                selectFocusMusicTrack(lastTrack)
+                if focusMusicEnabled {
+                    startFocusMusic(track: lastTrack)
+                }
+            }
+            return
+        }
+        
+        let prevIndex = (currentIndex - 1 + availableTracks.count) % availableTracks.count
+        let prevTrack = availableTracks[prevIndex]
+        
+        selectFocusMusicTrack(prevTrack)
+        
+        if focusMusicEnabled {
+            startFocusMusic(track: prevTrack)
+        }
+        
+        print("⏮️ FocusMusicManager: Switched to previous track: \(prevTrack.name)")
     }
     
     // MARK: - Home Music Methods

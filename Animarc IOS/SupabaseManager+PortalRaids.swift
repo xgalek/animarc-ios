@@ -12,24 +12,37 @@ import Supabase
 
 extension SupabaseManager {
     
-    /// Fetch all portal bosses from database
-    /// - Returns: Array of PortalBoss
+    /// Fetch all portal bosses from database ordered by map_order
     func fetchAllPortalBosses() async throws -> [PortalBoss] {
         return try await withRetry {
             try await self.client
                 .from("portal_bosses")
                 .select()
+                .order("map_order", ascending: true)
                 .execute()
                 .value
         }
     }
     
-    /// Fetch available portal bosses for user's rank range
-    /// - Parameter userRank: User's current rank code
-    /// - Returns: Array of PortalBoss filtered by rank
+    /// Fetch a window of bosses around the current map position for efficient loading.
+    /// Returns defeated bosses + current + next `aheadCount` locked bosses.
+    func fetchMapBosses(completedOrderMax: Int, aheadCount: Int = 8) async throws -> [PortalBoss] {
+        return try await withRetry {
+            let upperBound = completedOrderMax + aheadCount + 1
+            let bosses: [PortalBoss] = try await self.client
+                .from("portal_bosses")
+                .select()
+                .lte("map_order", value: upperBound)
+                .order("map_order", ascending: true)
+                .execute()
+                .value
+            return bosses
+        }
+    }
+    
+    /// Fetch available portal bosses for user's rank range (legacy, kept for compatibility)
     func fetchAvailablePortalBosses(userRank: String) async throws -> [PortalBoss] {
         return try await withRetry {
-            // Get current rank and next rank
             let ranks = ["E", "D", "C", "B", "A", "S", "SS", "SSS"]
             guard let currentIndex = ranks.firstIndex(of: userRank) else {
                 return try await self.fetchAllPortalBosses()
@@ -38,34 +51,46 @@ extension SupabaseManager {
             let nextRank = currentIndex < ranks.count - 1 ? ranks[currentIndex + 1] : nil
             
             do {
-                // Build query based on whether we have a next rank
                 if let nextRank = nextRank {
-                    // Fetch current rank and next rank bosses
                     let bosses: [PortalBoss] = try await self.client
                         .from("portal_bosses")
                         .select()
                         .in("rank", value: [userRank, nextRank])
+                        .order("map_order", ascending: true)
                         .execute()
                         .value
                     return bosses
                 } else {
-                    // At max rank, only fetch current rank
                     let bosses: [PortalBoss] = try await self.client
                         .from("portal_bosses")
                         .select()
                         .in("rank", value: [userRank])
+                        .order("map_order", ascending: true)
                         .execute()
                         .value
                     return bosses
                 }
             } catch {
                 print("Error fetching portal bosses: \(error)")
-                print("Error type: \(type(of: error))")
                 if let decodingError = error as? DecodingError {
                     print("Decoding error details: \(decodingError)")
                 }
                 throw error
             }
+        }
+    }
+    
+    /// Fetch IDs of all completed (defeated) bosses for a user
+    func fetchCompletedBossIds(userId: UUID) async throws -> Set<UUID> {
+        return try await withRetry {
+            let progress: [PortalRaidProgress] = try await self.client
+                .from("portal_progress")
+                .select()
+                .eq("user_id", value: userId.uuidString)
+                .eq("completed", value: true)
+                .execute()
+                .value
+            return Set(progress.map { $0.portalBossId })
         }
     }
 }

@@ -21,6 +21,7 @@ struct PortalRaidResultView: View {
     @State private var contentAppeared = false
     @State private var showRewards = false
     @State private var showItemDropModal = false
+    @State private var inventoryWasFull = false
     
     private var isBossDefeated: Bool {
         result.bossDefeated
@@ -90,6 +91,20 @@ struct PortalRaidResultView: View {
                         .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.6), value: showRewards)
                 }
                 
+                // Inventory full warning
+                if isBossDefeated && inventoryWasFull {
+                    HStack(spacing: 6) {
+                        Image(systemName: "shippingbox.fill")
+                            .font(.system(size: 13))
+                        Text("Inventory full! Sell items to earn drops.")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundColor(Color(hex: "#F59E0B"))
+                    .padding(.top, 12)
+                    .opacity(showRewards ? 1 : 0)
+                    .animation(.easeOut(duration: 0.3).delay(0.7), value: showRewards)
+                }
+                
                 // Action buttons
                 actionButtons
                     .padding(.top, 24)
@@ -117,6 +132,11 @@ struct PortalRaidResultView: View {
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 showRewards = true
+            }
+            
+            // If boss defeated but no item drop pending, inventory was likely full
+            if isBossDefeated && progressManager.pendingPortalBossItemDrop == nil {
+                inventoryWasFull = true
             }
             
             // Check for portal boss item drop when view appears
@@ -474,9 +494,9 @@ struct PortalRaidResultView: View {
                 onReturnHome()
             }) {
                 HStack(spacing: 8) {
-                    Image(systemName: "house.fill")
+                    Image(systemName: "map.fill")
                         .font(.system(size: 18, weight: .bold))
-                    Text("Return Home")
+                    Text("Back to Map")
                         .font(.system(size: 18, weight: .bold))
                         .tracking(0.5)
                 }

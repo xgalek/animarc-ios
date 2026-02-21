@@ -102,13 +102,16 @@ struct OnboardingPage3_Username: View {
                 
                 // Starting rank preview
                 HStack(spacing: 8) {
-                    Text("E-Rank")
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .background(eRankInfo.swiftUIColor)
-                        .cornerRadius(6)
+                    HStack(spacing: 2) {
+                        Image("E_rank")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 30, height: 30)
+                        Text("E-Rank")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(eRankInfo.swiftUIColor)
+                    }
                     
                     Text("Starting as E-Rank Hunter")
                         .font(.system(size: 12, weight: .regular))

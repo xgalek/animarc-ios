@@ -441,19 +441,25 @@ struct FocusSessionView: View {
 struct FocusMusicControlSheet: View {
     @StateObject private var musicManager = FocusMusicManager.shared
     @Environment(\.dismiss) var dismiss
+    @State private var orbRotation: Double = 0
+    @State private var pulseRing1: Bool = false
+    @State private var pulseRing2: Bool = false
+    
+    private var isPlaying: Bool { musicManager.focusMusicPlaying }
+    private var isEnabled: Bool { musicManager.focusMusicEnabled }
     
     var body: some View {
         ZStack {
-            // Background
             Color(hex: "#1A2332")
                 .ignoresSafeArea()
             
-            VStack(spacing: 24) {
-                // Header: Focus Music (left) + Toggle (right)
+            VStack(spacing: 0) {
+                // Header
                 HStack {
-                    Text("Focus Music")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
+                    Text("FOCUS MUSIC")
+                        .font(.system(size: 13, weight: .semibold))
+                        .tracking(3)
+                        .foregroundColor(.white.opacity(0.5))
                     
                     Spacer()
                     
@@ -469,67 +475,170 @@ struct FocusMusicControlSheet: View {
                     .labelsHidden()
                     .tint(Color(hex: "#FF9500"))
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                
-                // Middle Section: Currently Playing + Controls
-                VStack(spacing: 20) {
-                    // Currently Playing Section
-                    VStack(spacing: 8) {
-                        Text("Currently Playing:")
-                            .font(.subheadline)
-                            .foregroundColor(musicManager.focusMusicEnabled ? Color(hex: "#9CA3AF") : Color(hex: "#6B7280"))
-                        
-                        if let currentTrack = musicManager.focusMusicTrack {
-                            Text(currentTrack.name)
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(musicManager.focusMusicEnabled ? .white : Color(hex: "#6B7280"))
-                        } else {
-                            Text("No track selected")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(Color(hex: "#6B7280"))
-                        }
-                    }
-                    .opacity(musicManager.focusMusicEnabled ? 1.0 : 0.5)
-                    
-                    // Control Buttons: Play/Pause and Next
-                    HStack(spacing: 40) {
-                        // Play/Pause Button
-                        Button(action: {
-                            if musicManager.focusMusicPlaying {
-                                musicManager.pauseFocusMusic()
-                            } else {
-                                if musicManager.focusMusicEnabled {
-                                    musicManager.resumeFocusMusic()
-                                } else {
-                                    musicManager.startFocusMusic()
-                                }
-                            }
-                        }) {
-                            Image(systemName: musicManager.focusMusicPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                .font(.system(size: 50))
-                                .foregroundColor(musicManager.focusMusicEnabled ? Color(hex: "#FF9500") : Color(hex: "#6B7280"))
-                        }
-                        .disabled(!musicManager.focusMusicEnabled)
-                        
-                        // Next Button
-                        Button(action: {
-                            musicManager.nextFocusMusicTrack()
-                        }) {
-                            Image(systemName: "forward.fill")
-                                .font(.system(size: 30))
-                                .foregroundColor(musicManager.focusMusicEnabled ? .white : Color(hex: "#6B7280"))
-                                .padding(12)
-                                .background(musicManager.focusMusicEnabled ? Color(hex: "#374151") : Color(hex: "#2A2A2A"))
-                                .clipShape(Circle())
-                        }
-                        .disabled(!musicManager.focusMusicEnabled)
-                    }
-                    .padding(.top, 8)
-                }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
                 
                 Spacer()
+                
+                // Orb + Pulse Rings
+                ZStack {
+                    // Pulse ring 1
+                    Circle()
+                        .stroke(Color(hex: "#3B5068").opacity(pulseRing1 ? 0.0 : 0.25), lineWidth: 1.5)
+                        .frame(width: 160, height: 160)
+                        .scaleEffect(pulseRing1 ? 1.6 : 1.0)
+                        .animation(
+                            isPlaying
+                                ? .easeOut(duration: 2.4).repeatForever(autoreverses: false)
+                                : .default,
+                            value: pulseRing1
+                        )
+                    
+                    // Pulse ring 2 (staggered)
+                    Circle()
+                        .stroke(Color(hex: "#3B5068").opacity(pulseRing2 ? 0.0 : 0.2), lineWidth: 1)
+                        .frame(width: 160, height: 160)
+                        .scaleEffect(pulseRing2 ? 1.5 : 1.0)
+                        .animation(
+                            isPlaying
+                                ? .easeOut(duration: 2.4).repeatForever(autoreverses: false).delay(1.0)
+                                : .default,
+                            value: pulseRing2
+                        )
+                    
+                    // Dashed spinning border
+                    Circle()
+                        .stroke(style: StrokeStyle(lineWidth: 1, dash: [6, 6]))
+                        .foregroundColor(Color(hex: "#475569").opacity(0.4))
+                        .frame(width: 160, height: 160)
+                        .rotationEffect(.degrees(orbRotation))
+                    
+                    // Orb
+                    ZStack {
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    gradient: Gradient(colors: [
+                                        Color(hex: "#2A3A4E"),
+                                        Color(hex: "#1E293B")
+                                    ]),
+                                    center: .center,
+                                    startRadius: 10,
+                                    endRadius: 64
+                                )
+                            )
+                            .frame(width: 128, height: 128)
+                        
+                        // Inner highlight
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.12), Color.clear],
+                                    startPoint: .top,
+                                    endPoint: .center
+                                )
+                            )
+                            .frame(width: 128, height: 128)
+                        
+                        Image(systemName: "music.note")
+                            .font(.system(size: 40, weight: .light))
+                            .foregroundColor(.white.opacity(isEnabled ? 0.5 : 0.2))
+                    }
+                    .shadow(color: Color(hex: "#3B5068").opacity(0.4), radius: 30, x: 0, y: 0)
+                }
+                .opacity(isEnabled ? 1.0 : 0.4)
+                .onAppear {
+                    withAnimation(.linear(duration: 12).repeatForever(autoreverses: false)) {
+                        orbRotation = 360
+                    }
+                    if isPlaying {
+                        pulseRing1 = true
+                        pulseRing2 = true
+                    }
+                }
+                .onChange(of: isPlaying) { playing in
+                    if playing {
+                        pulseRing1 = false
+                        pulseRing2 = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            pulseRing1 = true
+                            pulseRing2 = true
+                        }
+                    } else {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            pulseRing1 = false
+                            pulseRing2 = false
+                        }
+                    }
+                }
+                
+                // Track info
+                VStack(spacing: 6) {
+                    Text("CURRENTLY PLAYING")
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(3)
+                        .foregroundColor(isEnabled ? .white.opacity(0.35) : .white.opacity(0.2))
+                    
+                    if let currentTrack = musicManager.focusMusicTrack {
+                        Text(currentTrack.name.uppercased())
+                            .font(.system(size: 22, weight: .bold))
+                            .tracking(4)
+                            .foregroundColor(isEnabled ? .white : .white.opacity(0.3))
+                    } else {
+                        Text("NO TRACK")
+                            .font(.system(size: 22, weight: .bold))
+                            .tracking(4)
+                            .foregroundColor(.white.opacity(0.3))
+                    }
+                }
+                .padding(.top, 32)
+                
+                Spacer()
+                
+                // Controls
+                HStack(spacing: 48) {
+                    Button {
+                        musicManager.previousFocusMusicTrack()
+                    } label: {
+                        Image(systemName: "backward.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(isEnabled ? .white.opacity(0.55) : .white.opacity(0.2))
+                    }
+                    .disabled(!isEnabled)
+                    
+                    Button {
+                        if musicManager.focusMusicPlaying {
+                            musicManager.pauseFocusMusic()
+                        } else if musicManager.focusMusicEnabled {
+                            musicManager.resumeFocusMusic()
+                        } else {
+                            musicManager.startFocusMusic()
+                        }
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: "#FF9500"))
+                                .frame(width: 72, height: 72)
+                                .shadow(color: Color(hex: "#FF9500").opacity(0.35), radius: 16, x: 0, y: 4)
+                            
+                            Image(systemName: isPlaying ? "pause" : "play.fill")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundColor(Color(hex: "#1A2332"))
+                        }
+                    }
+                    .disabled(!isEnabled)
+                    .opacity(isEnabled ? 1.0 : 0.4)
+                    
+                    Button {
+                        musicManager.nextFocusMusicTrack()
+                    } label: {
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(isEnabled ? .white.opacity(0.55) : .white.opacity(0.2))
+                    }
+                    .disabled(!isEnabled)
+                }
+                .padding(.bottom, 40)
             }
         }
     }

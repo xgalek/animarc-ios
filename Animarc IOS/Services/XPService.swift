@@ -54,6 +54,9 @@ final class XPService {
     /// Bonus XP for a perfect week (7/7 days)
     static var perfectWeekBonus: Int = 500
     
+    /// Minimum session duration (in minutes) to qualify for bonus XP
+    static let minimumBonusSessionMinutes: Int = 5
+    
     // MARK: - XP Calculation
     
     /// Calculate XP earned for a focus session
@@ -72,11 +75,13 @@ final class XPService {
         // Base XP from time spent
         let baseXP = max(0, durationMinutes * xpPerMinute)
         
-        // Session completion bonus (only if actually focused for some time)
-        let completionBonus = (isSessionComplete && durationMinutes > 0) ? sessionCompletionBonus : 0
+        let qualifiesForBonus = durationMinutes >= minimumBonusSessionMinutes
         
-        // First session of day bonus
-        let firstBonus = (isFirstSessionOfDay && durationMinutes > 0) ? firstSessionBonus : 0
+        // Session completion bonus (requires minimum session duration to prevent spam)
+        let completionBonus = (isSessionComplete && qualifiesForBonus) ? sessionCompletionBonus : 0
+        
+        // First session of day bonus (requires minimum session duration)
+        let firstBonus = (isFirstSessionOfDay && qualifiesForBonus) ? firstSessionBonus : 0
         
         // Streak bonus (7-day milestone)
         var streakBonus = 0

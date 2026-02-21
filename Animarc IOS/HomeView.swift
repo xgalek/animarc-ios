@@ -27,6 +27,7 @@ struct HomeView: View {
     @State private var isRefreshing = false
     @State private var currentQuote = ""
     @State private var contentAppeared = false
+    @State private var focusButtonAppeared = false
     @State private var pendingNavigation: String? = nil
     @State private var showPaywall = false
     @State private var showRatingPopup = false
@@ -114,26 +115,32 @@ struct HomeView: View {
                             )
                             .frame(height: 24)
                             
-                            // Rank badge - minimalistic
+                            // Rank badge
                             if progressManager.isLoading {
-                                Text("E-Rank")
-                                    .font(.caption)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 5)
-                                    .frame(height: 24)
-                                    .background(Color(hex: "#4A90A4"))
-                                    .cornerRadius(8)
-                                    .shimmer()
+                                HStack(spacing: 2) {
+                                    Image("E_rank")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 30, height: 30)
+                                    Text("E-Rank")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(Color(hex: "#4A90A4"))
+                                }
+                                .shimmer()
                             } else {
-                                Text("\(progressManager.currentRank)-Rank")
-                                    .font(.caption)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 5)
-                                    .frame(height: 24)
-                                    .background(progressManager.currentRankInfo.swiftUIColor)
-                                    .cornerRadius(8)
+                                HStack(spacing: 2) {
+                                    if let badgeName = progressManager.currentRankInfo.badgeImageName {
+                                        Image(badgeName)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                            .frame(width: 30, height: 30)
+                                    }
+                                    Text("\(progressManager.currentRank)-Rank")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -168,7 +175,8 @@ struct HomeView: View {
                         .scaleEffect(contentAppeared ? 1 : 0.7)
                         .animation(.spring(response: 1.2, dampingFraction: 0.7), value: contentAppeared)
                     
-                    // Focus Button
+                    // Focus Button — uses explicit withAnimation to prevent
+                    // portal/state-change animation leaking via implicit .animation()
                     Button(action: {
                         handleFocusButtonTap()
                     }) {
@@ -184,9 +192,8 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 30)
                     .padding(.bottom, 50)
-                    .opacity(contentAppeared ? 1 : 0)
-                    .offset(y: contentAppeared ? 0 : 30)
-                    .animation(.easeOut(duration: 0.6), value: contentAppeared)
+                    .opacity(focusButtonAppeared ? 1 : 0)
+                    .offset(y: focusButtonAppeared ? 0 : 30)
                     .disabled(isRequestingPermission)
                 }
                 .padding(.top, 100)
@@ -217,6 +224,9 @@ struct HomeView: View {
                 // Trigger smooth fade-in animation for all elements
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     contentAppeared = true
+                    withAnimation(.easeOut(duration: 0.6)) {
+                        focusButtonAppeared = true
+                    }
                 }
                 
                 // Restart home music when returning to homepage (e.g., after exiting reward/stats screen)
@@ -231,6 +241,11 @@ struct HomeView: View {
                 checkAndShowStreakCelebration()
                 // Refresh authorization status
                 appBlockingManager.refreshAuthorizationStatus()
+            }
+            .onChange(of: progressManager.pendingItemDrop?.id) { _, newValue in
+                if newValue != nil && navigationPath.isEmpty && !showLevelUpModal && !showRankUpModal && !showItemDropModal {
+                    showItemDropModal = true
+                }
             }
             .sheet(isPresented: $showPermissionModal) {
                 AppBlockingPermissionModal(
@@ -713,13 +728,24 @@ struct RankUpModalView: View {
                         .shadow(color: rankColor.opacity(0.5), radius: 8, x: 0, y: 2)
                         .opacity(contentOpacity)
                     
-                    // Hero Element: NEW rank (e.g., "D-Rank")
-                    Text("\(newRank.code)-Rank")
-                        .font(.system(size: 90, weight: .bold))
-                        .foregroundColor(rankColor)
-                        .shadow(color: rankColor.opacity(rankGlow), radius: 30, x: 0, y: 0)
-                        .scaleEffect(rankScale)
-                        .padding(.vertical, 20)
+                    // Hero Element: NEW rank badge + text
+                    VStack(spacing: 12) {
+                        if let badgeName = newRank.badgeImageName {
+                            Image(badgeName)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 80, height: 80)
+                                .shadow(color: rankColor.opacity(rankGlow), radius: 20, x: 0, y: 0)
+                        }
+                        Text("\(newRank.code)-Rank")
+                            .font(.system(size: 44, weight: .bold))
+                            .minimumScaleFactor(0.7)
+                            .lineLimit(1)
+                            .foregroundColor(rankColor)
+                    }
+                    .shadow(color: rankColor.opacity(rankGlow), radius: 30, x: 0, y: 0)
+                    .scaleEffect(rankScale)
+                    .padding(.vertical, 20)
                     
                     Spacer()
                     
@@ -1132,16 +1158,24 @@ struct ItemDropModalView: View {
                         .opacity(contentOpacity)
                     
                     // Rank badge
-                    Text("\(item.rolledRank)-RANK")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(item.rankColor)
-                        .cornerRadius(10)
-                        .shadow(color: item.rankColor.opacity(0.5), radius: 8, x: 0, y: 0)
-                        .opacity(contentOpacity)
+                    HStack(spacing: 6) {
+                        if let badgeName = RankService.getRankByCode(item.rolledRank)?.badgeImageName {
+                            Image(badgeName)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 20, height: 20)
+                        }
+                        Text("\(item.rolledRank)-RANK")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(item.rankColor)
+                    .cornerRadius(10)
+                    .shadow(color: item.rankColor.opacity(0.5), radius: 8, x: 0, y: 0)
+                    .opacity(contentOpacity)
                     
                     // Item icon (separate for pop animation)
                     AsyncImage(url: URL(string: item.iconUrl)) { phase in

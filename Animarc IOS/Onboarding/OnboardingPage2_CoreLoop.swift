@@ -51,14 +51,16 @@ struct OnboardingPage2_CoreLoop: View {
                             .frame(height: 24)
                         
                         // Rank badge
-                        Text("E-Rank")
-                            .font(.caption)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 5)
-                            .frame(height: 24)
-                            .background(eRankInfo.swiftUIColor)
-                            .cornerRadius(8)
+                        HStack(spacing: 2) {
+                            Image("E_rank")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 30, height: 30)
+                            Text("E-Rank")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(eRankInfo.swiftUIColor)
+                        }
                     }
                     .padding(.horizontal, 12)
                     .padding(.top, 12)

@@ -8,9 +8,34 @@
 import Foundation
 import Supabase
 
+// MARK: - Progress Serialization
+
+/// Serializes all user progress mutations (XP, gold, stats) to prevent race conditions
+/// where concurrent updateXP and updateGoldAndXP calls could double-award stat points.
+private let progressMutex = AsyncMutex()
+
 // MARK: - User Progress
 
 extension SupabaseManager {
+    
+    /// Calculate how many stat points the user has already allocated based on current stats.
+    /// Health costs 1 point per 5 HP above base (150), other stats cost 1 point per 1 above base (10).
+    nonisolated static func calculateStatPointsSpent(from progress: UserProgress) -> Int {
+        let healthPointsSpent = max(0, (progress.statHealth - 150) / 5)
+        let otherPointsSpent = max(0, progress.statAttack - 10)
+                              + max(0, progress.statDefense - 10)
+                              + max(0, progress.statSpeed - 10)
+        return healthPointsSpent + otherPointsSpent
+    }
+    
+    /// Calculate the correct available stat points for a given level and allocated stats.
+    /// Gold-purchased stat points are subtracted from total spent so they don't consume level-earned points.
+    nonisolated static func calculateCorrectAvailablePoints(level: Int, progress: UserProgress) -> Int {
+        let totalPointsForLevel = 5 + (level - 1) * 5
+        let totalPointsSpent = calculateStatPointsSpent(from: progress)
+        let levelPointsSpent = totalPointsSpent - progress.goldStatPointsPurchased
+        return max(0, totalPointsForLevel - levelPointsSpent)
+    }
     
     /// Fetch user progress for authenticated user
     /// - Parameter userId: The user's UUID
@@ -97,60 +122,59 @@ extension SupabaseManager {
         focusMinutesIncrement: Int = 0,
         sessionsIncrement: Int = 0
     ) async throws -> UserProgress {
-        return try await withRetry {
-            // Fetch current progress
-            guard let current = try await self.fetchUserProgress(userId: userId) else {
-                throw GamificationError.userProgressNotFound
+        return try await progressMutex.withLock { [self] in
+            try await withRetry {
+                guard let current = try await self.fetchUserProgress(userId: userId) else {
+                    throw GamificationError.userProgressNotFound
+                }
+                
+                let newTotalXP = Int64(current.totalXPEarned) + Int64(xpToAdd)
+                let newLevel = LevelService.getLevelFromXP(Int(newTotalXP))
+                let newRank = RankService.getRankForLevel(newLevel).code
+                
+                let levelProgress = LevelService.getLevelProgress(totalXP: Int(newTotalXP))
+                let newCurrentXP = max(0, levelProgress.xpInCurrentLevel)
+                
+                // Recalculate stat points from ground truth (level + allocated stats)
+                // instead of incrementing, to prevent double-awards from concurrent updates
+                let newAvailableStatPoints = SupabaseManager.calculateCorrectAvailablePoints(
+                    level: newLevel, progress: current
+                )
+                
+                struct UpdateData: Codable {
+                    let current_xp: Int
+                    let total_xp_earned: Int64
+                    let current_level: Int
+                    let current_rank: String
+                    let total_focus_minutes: Int
+                    let total_sessions_completed: Int
+                    let available_stat_points: Int
+                }
+                
+                let updateData = UpdateData(
+                    current_xp: newCurrentXP,
+                    total_xp_earned: newTotalXP,
+                    current_level: newLevel,
+                    current_rank: newRank,
+                    total_focus_minutes: current.totalFocusMinutes + focusMinutesIncrement,
+                    total_sessions_completed: current.totalSessionsCompleted + sessionsIncrement,
+                    available_stat_points: newAvailableStatPoints
+                )
+                
+                let response: [UserProgress] = try await self.client
+                    .from("user_progress")
+                    .update(updateData)
+                    .eq("user_id", value: userId.uuidString)
+                    .select()
+                    .execute()
+                    .value
+                
+                guard let updated = response.first else {
+                    throw GamificationError.userProgressNotFound
+                }
+                
+                return updated
             }
-            
-            // Calculate new values
-            let newTotalXP = Int64(current.totalXPEarned) + Int64(xpToAdd)
-            let newLevel = LevelService.getLevelFromXP(Int(newTotalXP))
-            let newRank = RankService.getRankForLevel(newLevel).code
-            
-            // Calculate XP within current level for display
-            // current_xp represents progress toward next level, must be >= 0
-            let levelProgress = LevelService.getLevelProgress(totalXP: Int(newTotalXP))
-            let newCurrentXP = max(0, levelProgress.xpInCurrentLevel)
-            
-            // Calculate stat points to award based on levels gained
-            let levelsGained = newLevel - current.currentLevel
-            let statPointsToAdd = levelsGained * 5
-            let newAvailableStatPoints = current.availableStatPoints + statPointsToAdd
-            
-            struct UpdateData: Codable {
-                let current_xp: Int
-                let total_xp_earned: Int64
-                let current_level: Int
-                let current_rank: String
-                let total_focus_minutes: Int
-                let total_sessions_completed: Int
-                let available_stat_points: Int
-            }
-            
-            let updateData = UpdateData(
-                current_xp: newCurrentXP,
-                total_xp_earned: newTotalXP,
-                current_level: newLevel,
-                current_rank: newRank,
-                total_focus_minutes: current.totalFocusMinutes + focusMinutesIncrement,
-                total_sessions_completed: current.totalSessionsCompleted + sessionsIncrement,
-                available_stat_points: newAvailableStatPoints
-            )
-            
-            let response: [UserProgress] = try await self.client
-                .from("user_progress")
-                .update(updateData)
-                .eq("user_id", value: userId.uuidString)
-                .select()
-                .execute()
-                .value
-            
-            guard let updated = response.first else {
-                throw GamificationError.userProgressNotFound
-            }
-            
-            return updated
         }
     }
     
@@ -171,96 +195,48 @@ extension SupabaseManager {
         statSpeed: Int,
         pointsSpent: Int
     ) async throws -> UserProgress {
-        // Fetch current progress
-        guard let current = try await fetchUserProgress(userId: userId) else {
-            throw GamificationError.userProgressNotFound
-        }
-        
-        // Validate points spent doesn't exceed available
-        guard pointsSpent <= current.availableStatPoints else {
-            throw GamificationError.userProgressNotFound // TODO: Create proper error type
-        }
-        
-        struct StatUpdateData: Codable {
-            let stat_health: Int
-            let stat_attack: Int
-            let stat_defense: Int
-            let stat_speed: Int
-            let available_stat_points: Int
-        }
-        
-        let updateData = StatUpdateData(
-            stat_health: statHealth,
-            stat_attack: statAttack,
-            stat_defense: statDefense,
-            stat_speed: statSpeed,
-            available_stat_points: current.availableStatPoints - pointsSpent
-        )
-        
-        let response: [UserProgress] = try await client
-            .from("user_progress")
-            .update(updateData)
-            .eq("user_id", value: userId.uuidString)
-            .select()
-            .execute()
-            .value
-        
-        guard let updated = response.first else {
-            throw GamificationError.userProgressNotFound
-        }
-        
-        return updated
-    }
-    
-    /// Update gold and XP after a battle
-    /// - Parameters:
-    ///   - userId: The user's UUID
-    ///   - goldToAdd: Amount of gold to add (can be 0 for losses)
-    ///   - xpToAdd: Amount of XP to add (50 for win, 10 for loss)
-    /// - Returns: Updated UserProgress
-    func updateGoldAndXP(userId: UUID, goldToAdd: Int, xpToAdd: Int) async throws -> UserProgress {
-        return try await withRetry {
-            // Fetch current progress
-            guard let current = try await self.fetchUserProgress(userId: userId) else {
+        return try await progressMutex.withLock { [self] in
+            guard let current = try await fetchUserProgress(userId: userId) else {
                 throw GamificationError.userProgressNotFound
             }
             
-            // Calculate new values
-            let newTotalXP = Int64(current.totalXPEarned) + Int64(xpToAdd)
-            let newLevel = LevelService.getLevelFromXP(Int(newTotalXP))
-            let newRank = RankService.getRankForLevel(newLevel).code
-            
-            // Calculate XP within current level for display
-            let levelProgress = LevelService.getLevelProgress(totalXP: Int(newTotalXP))
-            let newCurrentXP = max(0, levelProgress.xpInCurrentLevel)
-            
-            // Calculate stat points to award based on levels gained
-            let levelsGained = newLevel - current.currentLevel
-            let statPointsToAdd = levelsGained * 5
-            let newAvailableStatPoints = current.availableStatPoints + statPointsToAdd
-            
-            // Calculate new gold balance
-            let newGold = current.gold + goldToAdd
-            
-            struct BattleUpdateData: Codable {
-                let current_xp: Int
-                let total_xp_earned: Int64
-                let current_level: Int
-                let current_rank: String
-                let available_stat_points: Int
-                let gold: Int
+            guard pointsSpent <= current.availableStatPoints else {
+                throw GamificationError.userProgressNotFound
             }
             
-            let updateData = BattleUpdateData(
-                current_xp: newCurrentXP,
-                total_xp_earned: newTotalXP,
-                current_level: newLevel,
-                current_rank: newRank,
-                available_stat_points: newAvailableStatPoints,
-                gold: newGold
+            // Validate stat minimums
+            guard statHealth >= 150, statAttack >= 10, statDefense >= 10, statSpeed >= 10 else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            // Recalculate available points from ground truth after applying new stats
+            // This prevents any accumulation bugs from persisting
+            var projected = current
+            projected.statHealth = statHealth
+            projected.statAttack = statAttack
+            projected.statDefense = statDefense
+            projected.statSpeed = statSpeed
+            let correctAvailable = SupabaseManager.calculateCorrectAvailablePoints(
+                level: current.currentLevel, progress: projected
             )
             
-            let response: [UserProgress] = try await self.client
+            struct StatUpdateData: Codable {
+                let stat_health: Int
+                let stat_attack: Int
+                let stat_defense: Int
+                let stat_speed: Int
+                let available_stat_points: Int
+            }
+            
+            let updateData = StatUpdateData(
+                stat_health: statHealth,
+                stat_attack: statAttack,
+                stat_defense: statDefense,
+                stat_speed: statSpeed,
+                available_stat_points: correctAvailable
+            )
+            
+            let response: [UserProgress] = try await client
                 .from("user_progress")
                 .update(updateData)
                 .eq("user_id", value: userId.uuidString)
@@ -273,6 +249,145 @@ extension SupabaseManager {
             }
             
             return updated
+        }
+    }
+    
+    /// Purchase a stat point using gold (200 gold per point).
+    /// Health gets +5, other stats get +1. Does not consume level-earned stat points.
+    func purchaseStatWithGold(userId: UUID, statType: String) async throws -> UserProgress {
+        let goldCost = 200
+        
+        return try await progressMutex.withLock { [self] in
+            guard let current = try await fetchUserProgress(userId: userId) else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            guard current.gold >= goldCost else {
+                throw GamificationError.insufficientGold
+            }
+            
+            var newHealth = current.statHealth
+            var newAttack = current.statAttack
+            var newDefense = current.statDefense
+            var newSpeed = current.statSpeed
+            
+            switch statType {
+            case "Health": newHealth += 5
+            case "Attack": newAttack += 1
+            case "Defense": newDefense += 1
+            case "Speed": newSpeed += 1
+            default: throw GamificationError.userProgressNotFound
+            }
+            
+            let newGoldPurchased = current.goldStatPointsPurchased + 1
+            let newGold = current.gold - goldCost
+            
+            var projected = current
+            projected.statHealth = newHealth
+            projected.statAttack = newAttack
+            projected.statDefense = newDefense
+            projected.statSpeed = newSpeed
+            projected.goldStatPointsPurchased = newGoldPurchased
+            let correctAvailable = SupabaseManager.calculateCorrectAvailablePoints(
+                level: current.currentLevel, progress: projected
+            )
+            
+            struct GoldPurchaseUpdate: Codable {
+                let stat_health: Int
+                let stat_attack: Int
+                let stat_defense: Int
+                let stat_speed: Int
+                let gold: Int
+                let gold_stat_points_purchased: Int
+                let available_stat_points: Int
+            }
+            
+            let updateData = GoldPurchaseUpdate(
+                stat_health: newHealth,
+                stat_attack: newAttack,
+                stat_defense: newDefense,
+                stat_speed: newSpeed,
+                gold: newGold,
+                gold_stat_points_purchased: newGoldPurchased,
+                available_stat_points: correctAvailable
+            )
+            
+            let response: [UserProgress] = try await client
+                .from("user_progress")
+                .update(updateData)
+                .eq("user_id", value: userId.uuidString)
+                .select()
+                .execute()
+                .value
+            
+            guard let updated = response.first else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            return updated
+        }
+    }
+    
+    /// Update gold and XP after a battle
+    /// - Parameters:
+    ///   - userId: The user's UUID
+    ///   - goldToAdd: Amount of gold to add (can be 0 for losses)
+    ///   - xpToAdd: Amount of XP to add (50 for win, 10 for loss)
+    /// - Returns: Updated UserProgress
+    func updateGoldAndXP(userId: UUID, goldToAdd: Int, xpToAdd: Int) async throws -> UserProgress {
+        return try await progressMutex.withLock { [self] in
+            try await withRetry {
+                guard let current = try await self.fetchUserProgress(userId: userId) else {
+                    throw GamificationError.userProgressNotFound
+                }
+                
+                let newTotalXP = Int64(current.totalXPEarned) + Int64(xpToAdd)
+                let newLevel = LevelService.getLevelFromXP(Int(newTotalXP))
+                let newRank = RankService.getRankForLevel(newLevel).code
+                
+                let levelProgress = LevelService.getLevelProgress(totalXP: Int(newTotalXP))
+                let newCurrentXP = max(0, levelProgress.xpInCurrentLevel)
+                
+                // Recalculate stat points from ground truth (level + allocated stats)
+                // instead of incrementing, to prevent double-awards from concurrent updates
+                let newAvailableStatPoints = SupabaseManager.calculateCorrectAvailablePoints(
+                    level: newLevel, progress: current
+                )
+                
+                let newGold = current.gold + goldToAdd
+                
+                struct BattleUpdateData: Codable {
+                    let current_xp: Int
+                    let total_xp_earned: Int64
+                    let current_level: Int
+                    let current_rank: String
+                    let available_stat_points: Int
+                    let gold: Int
+                }
+                
+                let updateData = BattleUpdateData(
+                    current_xp: newCurrentXP,
+                    total_xp_earned: newTotalXP,
+                    current_level: newLevel,
+                    current_rank: newRank,
+                    available_stat_points: newAvailableStatPoints,
+                    gold: newGold
+                )
+                
+                let response: [UserProgress] = try await self.client
+                    .from("user_progress")
+                    .update(updateData)
+                    .eq("user_id", value: userId.uuidString)
+                    .select()
+                    .execute()
+                    .value
+                
+                guard let updated = response.first else {
+                    throw GamificationError.userProgressNotFound
+                }
+                
+                return updated
+            }
         }
     }
     

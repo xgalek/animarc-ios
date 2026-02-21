@@ -13,6 +13,8 @@ enum GamificationError: LocalizedError {
     case sessionSaveFailed
     case streakUpdateFailed
     case invalidUserId
+    case insufficientGold
+    case inventoryFull
     
     // Network-related errors
     case networkTimeout
@@ -42,6 +44,10 @@ enum GamificationError: LocalizedError {
             return "Failed to update streak"
         case .invalidUserId:
             return "Invalid user ID"
+        case .insufficientGold:
+            return "Not enough gold to make this purchase"
+        case .inventoryFull:
+            return "Inventory is full. Sell items to make room."
         case .networkTimeout:
             return "Request timed out. Please check your connection and try again."
         case .noConnection:
@@ -69,6 +75,10 @@ enum GamificationError: LocalizedError {
         switch self {
         case .userProgressNotFound, .invalidUserId:
             return "Please try restarting the app."
+        case .insufficientGold:
+            return "Earn more gold by defeating portal bosses."
+        case .inventoryFull:
+            return "Sell unwanted items from your inventory to free up space."
         case .notAuthenticated, .sessionExpired, .invalidSession, .tokenRefreshFailed:
             return "Please sign in again to continue."
         case .networkTimeout, .noConnection, .requestFailed:

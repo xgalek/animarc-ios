@@ -8,6 +8,46 @@
 import SwiftUI
 import UIKit
 
+// MARK: - AsyncMutex
+
+/// Async-safe mutual exclusion lock that serializes access to a critical section.
+/// Unlike Swift actors, this properly blocks concurrent callers even across suspension points.
+actor AsyncMutex {
+    private var locked = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    private func acquire() async {
+        if locked {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                waiters.append(continuation)
+            }
+            return
+        }
+        locked = true
+    }
+
+    private func release() {
+        if !waiters.isEmpty {
+            let next = waiters.removeFirst()
+            next.resume()
+        } else {
+            locked = false
+        }
+    }
+
+    func withLock<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {
+        await acquire()
+        do {
+            let result = try await operation()
+            release()
+            return result
+        } catch {
+            release()
+            throw error
+        }
+    }
+}
+
 // Color extension for hex color support
 extension Color {
     init(hex: String) {

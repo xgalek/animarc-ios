@@ -144,7 +144,6 @@
 				74A687DB2F02D51D001951FE /* ReceiptParser */,
 				74A687DD2F02D51D001951FE /* RevenueCat */,
 				74A687DF2F02D51D001951FE /* RevenueCatUI */,
-				74A687E12F02D51D001951FE /* RevenueCat_CustomEntitlementComputation */,
 			);
 			productName = "Animarc IOS";
 			productReference = 74BE1A502EDB7651007406F9 /* Animarc IOS.app */;
@@ -658,11 +657,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 74A687DA2F02D51D001951FE /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
 			productName = RevenueCatUI;
-		};
-		74A687E12F02D51D001951FE /* RevenueCat_CustomEntitlementComputation */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 74A687DA2F02D51D001951FE /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
-			productName = RevenueCat_CustomEntitlementComputation;
 		};
 		74BE1A7B2EDB7654007406F9 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;

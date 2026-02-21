@@ -14,6 +14,7 @@ struct CharacterView: View {
     @State private var selectedPortalItem: PortalItem?
     @State private var showStatAllocation = false
     @State private var showLevelUpModal = false
+    @State private var showPurchaseStats = false
     
     // Stat allocation system
     @State private var availablePoints: Int = 0
@@ -225,21 +226,23 @@ struct CharacterView: View {
             
             Spacer()
             
-            // Gold Display
-            HStack(spacing: 8) {
-                Image(systemName: "dollarsign.circle.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(Color(hex: "#FACC15"))
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("GOLD")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(Color(hex: "#9CA3AF"))
-                        .tracking(1)
+            // Gold Display (tappable to open purchase stats)
+            Button(action: { showPurchaseStats = true }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "dollarsign.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(Color(hex: "#FACC15"))
                     
-                    Text("\(progressManager.userProgress?.gold ?? 0)")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(Color(hex: "#F59E0B"))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("GOLD")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                            .tracking(1)
+                        
+                        Text("\(progressManager.userProgress?.gold ?? 0)")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(Color(hex: "#F59E0B"))
+                    }
                 }
             }
         }
@@ -360,24 +363,32 @@ struct CharacterView: View {
             )
             .frame(height: 24)
             
-            // Rank badge - minimalistic
+            // Rank badge
             if progressManager.isLoading {
-                Text("E-Rank")
-                    .font(.caption)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color(hex: "#4A90A4"))
-                    .cornerRadius(8)
-                    .pulsing()
+                HStack(spacing: 2) {
+                    Image("E_rank")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 30, height: 30)
+                    Text("E-Rank")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(hex: "#4A90A4"))
+                }
+                .pulsing()
             } else {
-                Text("\(progressManager.currentRank)-Rank")
-                    .font(.caption)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(progressManager.currentRankInfo.swiftUIColor)
-                    .cornerRadius(8)
+                HStack(spacing: 2) {
+                    if let badgeName = progressManager.currentRankInfo.badgeImageName {
+                        Image(badgeName)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 30, height: 30)
+                    }
+                    Text("\(progressManager.currentRank)-Rank")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(progressManager.currentRankInfo.swiftUIColor)
+                }
             }
         }
     }
@@ -507,6 +518,25 @@ struct CharacterView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showPurchaseStats) {
+                PurchaseStatsSheet(
+                    isPresented: $showPurchaseStats,
+                    itemBonuses: itemBonuses,
+                    onPurchase: { updatedProgress in
+                        progressManager.userProgress = updatedProgress
+                        tempStats = [
+                            "Health": updatedProgress.statHealth,
+                            "Attack": updatedProgress.statAttack,
+                            "Defense": updatedProgress.statDefense,
+                            "Speed": updatedProgress.statSpeed
+                        ]
+                        availablePoints = updatedProgress.availableStatPoints
+                    }
+                )
+                .environmentObject(progressManager)
+                .presentationDetents([.fraction(0.6)])
+                .presentationDragIndicator(.visible)
+            }
             .sheet(isPresented: $showInventoryPopup) {
                 InventoryPopupView(
                     inventory: $inventory,
@@ -516,6 +546,9 @@ struct CharacterView: View {
                     },
                     onUnequip: { item in
                         await unequipItem(item)
+                    },
+                    onSell: { item in
+                        await sellItem(item)
                     },
                     onDismiss: {
                         showInventoryPopup = false
@@ -672,6 +705,27 @@ struct CharacterView: View {
             inventory = updatedInventory
         } catch {
             print("CharacterView: Failed to unequip item: \(error)")
+        }
+    }
+    
+    /// Sell an item for gold
+    private func sellItem(_ item: PortalItem) async {
+        guard let userId = await getCurrentUserId() else {
+            print("CharacterView: No authenticated user")
+            return
+        }
+        
+        do {
+            let result = try await SupabaseManager.shared.sellItem(userId: userId, itemId: item.id)
+            inventory = result.inventory
+            
+            // Refresh user progress to reflect updated gold
+            await progressManager.refreshProgress()
+            
+            let impactFeedback = UINotificationFeedbackGenerator()
+            impactFeedback.notificationOccurred(.success)
+        } catch {
+            print("CharacterView: Failed to sell item: \(error)")
         }
     }
     
@@ -880,6 +934,251 @@ struct StatAllocationSheet: View {
     }
 }
 
+// MARK: - Purchase Stats Sheet (Gold -> Stat Points)
+
+struct PurchaseStatsSheet: View {
+    @EnvironmentObject var progressManager: UserProgressManager
+    @Binding var isPresented: Bool
+    let itemBonuses: [String: Int]
+    let onPurchase: (UserProgress) -> Void
+    
+    @State private var isPurchasing: [String: Bool] = [:]
+    
+    private let goldCost = 200
+    
+    private var currentGold: Int {
+        progressManager.userProgress?.gold ?? 0
+    }
+    
+    private var canAfford: Bool {
+        currentGold >= goldCost
+    }
+    
+    private struct StatInfo {
+        let key: String
+        let label: String
+        let icon: String
+        let color: Color
+        let bgColor: Color
+    }
+    
+    private let stats: [StatInfo] = [
+        StatInfo(key: "Attack", label: "Attack", icon: "bolt.fill",
+                 color: Color(hex: "#80D8FF"), bgColor: Color(hex: "#80D8FF")),
+        StatInfo(key: "Defense", label: "Defense", icon: "shield.fill",
+                 color: Color(hex: "#C080FF"), bgColor: Color(hex: "#C080FF")),
+        StatInfo(key: "Health", label: "Health", icon: "heart.fill",
+                 color: Color(hex: "#FF8080"), bgColor: Color(hex: "#FF8080")),
+        StatInfo(key: "Speed", label: "Speed", icon: "hare.fill",
+                 color: Color(hex: "#7CFF7C"), bgColor: Color(hex: "#7CFF7C"))
+    ]
+    
+    private func statValue(for key: String) -> Int {
+        guard let progress = progressManager.userProgress else { return 0 }
+        switch key {
+        case "Health": return progress.statHealth
+        case "Attack": return progress.statAttack
+        case "Defense": return progress.statDefense
+        case "Speed": return progress.statSpeed
+        default: return 0
+        }
+    }
+    
+    var body: some View {
+        ZStack {
+            Color(hex: "#1A2332")
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Purchase Stats")
+                            .font(.system(size: 24, weight: .heavy))
+                            .foregroundColor(.white)
+                        
+                        Text("UPGRADE YOUR ABILITIES")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                            .tracking(1.5)
+                    }
+                    
+                    Spacer()
+                    
+                    // Gold badge
+                    HStack(spacing: 6) {
+                        Image(systemName: "dollarsign.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(Color(hex: "#F59E0B"))
+                        
+                        Text("\(currentGold)")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.4))
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                    )
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
+                .padding(.bottom, 20)
+                
+                // Stat rows
+                VStack(spacing: 10) {
+                    ForEach(stats, id: \.key) { stat in
+                        statPurchaseRow(stat: stat)
+                    }
+                }
+                .padding(.horizontal, 20)
+                
+                Spacer()
+                
+                // Close button
+                Button(action: { isPresented = false }) {
+                    Text("Close")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(Color(hex: "#9CA3AF"))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(14)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 30)
+            }
+        }
+    }
+    
+    private func statPurchaseRow(stat: StatInfo) -> some View {
+        let bonus = itemBonuses[stat.key] ?? 0
+        let base = statValue(for: stat.key)
+        let purchasing = isPurchasing[stat.key] ?? false
+        
+        return HStack(spacing: 0) {
+            // Icon
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(stat.bgColor.opacity(0.1))
+                    .frame(width: 48, height: 48)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(stat.bgColor.opacity(0.2), lineWidth: 1)
+                    )
+                
+                Image(systemName: stat.icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(stat.color)
+            }
+            .padding(.trailing, 12)
+            
+            // Stat label + value
+            VStack(alignment: .leading, spacing: 2) {
+                Text(stat.label)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(Color(hex: "#E2E8F0"))
+                
+                HStack(spacing: 4) {
+                    Text("\(base)")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(stat.color)
+                    
+                    if bonus > 0 {
+                        Text("+\(bonus)")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(hex: "#22C55E"))
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Buy button
+            Button(action: {
+                Task { await purchaseStat(stat.key) }
+            }) {
+                HStack(spacing: 6) {
+                    Text("\(goldCost)")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.black)
+                    
+                    Image(systemName: "dollarsign.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.black.opacity(0.7))
+                    
+                    Rectangle()
+                        .fill(Color.black.opacity(0.2))
+                        .frame(width: 1, height: 18)
+                    
+                    Text("BUY")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(.black)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    canAfford && !purchasing
+                        ? Color(hex: "#F59E0B")
+                        : Color(hex: "#F59E0B").opacity(0.3)
+                )
+                .cornerRadius(12)
+                .shadow(
+                    color: canAfford && !purchasing ? Color(hex: "#F59E0B").opacity(0.3) : .clear,
+                    radius: 8, x: 0, y: 2
+                )
+            }
+            .disabled(!canAfford || purchasing)
+        }
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [Color(hex: "#334155").opacity(0.4), Color(hex: "#0F172A").opacity(0.4)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .cornerRadius(20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+        )
+    }
+    
+    private func purchaseStat(_ statType: String) async {
+        isPurchasing[statType] = true
+        defer { isPurchasing[statType] = false }
+        
+        guard let userId = await getCurrentUserId() else { return }
+        
+        do {
+            let updated = try await SupabaseManager.shared.purchaseStatWithGold(
+                userId: userId, statType: statType
+            )
+            
+            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+            impactFeedback.impactOccurred()
+            
+            progressManager.userProgress = updated
+            onPurchase(updated)
+        } catch {
+            print("PurchaseStatsSheet: Failed to purchase stat: \(error)")
+        }
+    }
+    
+    private func getCurrentUserId() async -> UUID? {
+        do {
+            let session = try await SupabaseManager.shared.client.auth.session
+            return session.user.id
+        } catch {
+            return nil
+        }
+    }
+}
+
 struct StatRowWithControls: View {
     let icon: String
     let label: String
@@ -994,37 +1293,23 @@ struct InventorySlot: View {
     let item: PortalItem
     
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            // Item icon - larger and centered
-            AsyncImage(url: URL(string: item.iconUrl)) { phase in
-                switch phase {
-                case .empty:
-                    ProgressView()
-                        .tint(.white)
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 80, height: 80)
-                case .failure:
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 60))
-                        .foregroundColor(Color(hex: "#9CA3AF"))
-                @unknown default:
-                    EmptyView()
-                }
+        AsyncImage(url: URL(string: item.iconUrl)) { phase in
+            switch phase {
+            case .empty:
+                ProgressView()
+                    .tint(.white)
+            case .success(let image):
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 80, height: 80)
+            case .failure:
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 60))
+                    .foregroundColor(Color(hex: "#9CA3AF"))
+            @unknown default:
+                EmptyView()
             }
-            
-            // Rank badge
-            Text(item.rolledRank)
-                .font(.caption2)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(item.rankColor)
-                .cornerRadius(4)
-                .offset(x: 5, y: -5)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 120)
@@ -1043,37 +1328,23 @@ struct EquippedSlot: View {
     
     var body: some View {
         VStack(spacing: 6) {
-            // Item icon with rank badge
-            ZStack(alignment: .topTrailing) {
-                AsyncImage(url: URL(string: item.iconUrl)) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .tint(.white)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 35, height: 35)
-                    case .failure:
-                        Image(systemName: "questionmark.circle")
-                            .font(.system(size: 30))
-                            .foregroundColor(Color(hex: "#9CA3AF"))
-                    @unknown default:
-                        EmptyView()
-                    }
+            AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                switch phase {
+                case .empty:
+                    ProgressView()
+                        .tint(.white)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 35, height: 35)
+                case .failure:
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 30))
+                        .foregroundColor(Color(hex: "#9CA3AF"))
+                @unknown default:
+                    EmptyView()
                 }
-                
-                // Rank badge
-                Text(item.rolledRank)
-                    .font(.system(size: 8))
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(item.rankColor)
-                    .cornerRadius(3)
-                    .offset(x: 3, y: -3)
             }
             
             // Item name
@@ -1133,6 +1404,7 @@ struct InventoryPopupView: View {
     @Binding var selectedRankFilter: String
     let onEquip: (PortalItem) async -> Void
     let onUnequip: (PortalItem) async -> Void
+    let onSell: (PortalItem) async -> Void
     let onDismiss: () -> Void
     
     @State private var selectedItem: PortalItem?
@@ -1157,11 +1429,17 @@ struct InventoryPopupView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Top bar with title and X button
+                // Top bar with title, count, and X button
                 HStack {
-                    Text("INVENTORY")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
+                    HStack(spacing: 8) {
+                        Text("INVENTORY")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Text("\(inventory?.items.count ?? 0)/\(PortalInventory.maxItems)")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                    }
                     
                     Spacer()
                     
@@ -1263,6 +1541,12 @@ struct InventoryPopupView: View {
                         await onUnequip(item)
                         selectedItem = nil
                     }
+                },
+                onSell: {
+                    Task {
+                        await onSell(item)
+                        selectedItem = nil
+                    }
                 }
             )
             .presentationDetents([.medium])
@@ -1288,60 +1572,46 @@ struct ItemDetailsPopup: View {
     let onClose: () -> Void
     let onEquip: () -> Void
     let onUnequip: () -> Void
+    let onSell: () -> Void
+    
+    @State private var showSellConfirmation = false
     
     var body: some View {
         ZStack {
-            // Background
             Color(hex: "#1A2332")
                 .ignoresSafeArea()
             
             VStack(spacing: 24) {
-                // Large item image with rank badge
-                ZStack(alignment: .topTrailing) {
-                    AsyncImage(url: URL(string: item.iconUrl)) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                                .tint(.white)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 150, height: 150)
-                        case .failure:
-                            Image(systemName: "questionmark.circle")
-                                .font(.system(size: 100))
-                                .foregroundColor(Color(hex: "#9CA3AF"))
-                        @unknown default:
-                            EmptyView()
-                        }
+                AsyncImage(url: URL(string: item.iconUrl)) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .tint(.white)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 150, height: 150)
+                    case .failure:
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 100))
+                            .foregroundColor(Color(hex: "#9CA3AF"))
+                    @unknown default:
+                        EmptyView()
                     }
-                    
-                    // Rank badge
-                    Text(item.rolledRank)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(item.rankColor)
-                        .cornerRadius(6)
-                        .offset(x: 10, y: -10)
                 }
                 .padding(.top, 50)
                 
-                // Item name
                 Text(item.name)
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
                 
-                // Rank display
                 Text("\(item.rolledRank)-Rank")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(item.rankColor)
                 
-                // Stats display
                 Text("+\(item.statValue) \(item.statType)")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundColor(.white)
@@ -1353,40 +1623,63 @@ struct ItemDetailsPopup: View {
                 Spacer()
                 
                 // Bottom button row
-                HStack(spacing: 16) {
-                    // Close button (left)
-                    Button(action: {
-                        onClose()
-                    }) {
-                        Text("Close")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color(hex: "#374151"))
-                            .cornerRadius(12)
+                VStack(spacing: 10) {
+                    HStack(spacing: 12) {
+                        // Close button
+                        Button(action: { onClose() }) {
+                            Text("Close")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color(hex: "#374151"))
+                                .cornerRadius(12)
+                        }
+                        
+                        // Equip/Unequip button
+                        Button(action: {
+                            if item.equipped { onUnequip() } else { onEquip() }
+                        }) {
+                            Text(item.equipped ? "Unequip" : "Equip")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(item.equipped ? Color(hex: "#EF4444") : Color(hex: "#6B46C1"))
+                                .cornerRadius(12)
+                        }
                     }
                     
-                    // Equip/Unequip button (right)
-                    Button(action: {
-                        if item.equipped {
-                            onUnequip()
-                        } else {
-                            onEquip()
+                    // Sell button
+                    Button(action: { showSellConfirmation = true }) {
+                        HStack(spacing: 6) {
+                            Text("Sell")
+                                .font(.system(size: 15, weight: .semibold))
+                            
+                            Text("\(item.sellPrice)")
+                                .font(.system(size: 15, weight: .bold))
+                            
+                            Image(systemName: "dollarsign.circle.fill")
+                                .font(.system(size: 14))
                         }
-                    }) {
-                        Text(item.equipped ? "Unequip" : "Equip")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(item.equipped ? Color(hex: "#EF4444") : Color(hex: "#6B46C1"))
-                            .cornerRadius(12)
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(hex: "#F59E0B"))
+                        .cornerRadius(12)
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 30)
             }
+        }
+        .alert("Sell Item?", isPresented: $showSellConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Sell for \(item.sellPrice) Gold", role: .destructive) {
+                onSell()
+            }
+        } message: {
+            Text("Sell \(item.name) (\(item.rolledRank)-Rank) for \(item.sellPrice) gold?")
         }
     }
 }

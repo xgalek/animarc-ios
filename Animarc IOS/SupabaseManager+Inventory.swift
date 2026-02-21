@@ -8,6 +8,12 @@
 import Foundation
 import Supabase
 
+// MARK: - Inventory Serialization
+
+/// Serializes all inventory mutations (add, equip, unequip, boss drops) to prevent
+/// the fetch-modify-write race condition that can overwrite the entire items array.
+private let inventoryMutex = AsyncMutex()
+
 // MARK: - Portal Inventory
 
 extension SupabaseManager {
@@ -113,6 +119,12 @@ extension SupabaseManager {
             return nil // Already dropped today
         }
         
+        // Check inventory cap
+        let currentInventory = try await fetchOrCreateInventory(userId: userId)
+        guard currentInventory.items.count < PortalInventory.maxItems else {
+            return nil // Inventory full
+        }
+        
         // Fetch all item configs
         let configs = try await fetchPortalItemConfigs()
         guard !configs.isEmpty else { return nil }
@@ -201,24 +213,27 @@ extension SupabaseManager {
         }
     }
     
-    /// Add item to user's inventory and update last drop date
+    /// Add item to user's inventory and update last drop date.
+    /// Serialized via inventoryMutex to prevent concurrent writes from overwriting items.
     private func addItemToInventory(userId: UUID, item: PortalItem) async throws {
-        var inventory = try await fetchOrCreateInventory(userId: userId)
-        inventory.items.append(item)
-        inventory.lastDropDate = Date()
-        
-        struct InventoryUpdate: Codable {
-            let items: [PortalItem]
-            let last_drop_date: Date
+        try await inventoryMutex.withLock { [self] in
+            var inventory = try await fetchOrCreateInventory(userId: userId)
+            inventory.items.append(item)
+            inventory.lastDropDate = Date()
+            
+            struct InventoryUpdate: Codable {
+                let items: [PortalItem]
+                let last_drop_date: Date
+            }
+            
+            let update = InventoryUpdate(items: inventory.items, last_drop_date: Date())
+            
+            try await client
+                .from("portal_inventory")
+                .update(update)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
         }
-        
-        let update = InventoryUpdate(items: inventory.items, last_drop_date: Date())
-        
-        try await client
-            .from("portal_inventory")
-            .update(update)
-            .eq("user_id", value: userId.uuidString)
-            .execute()
     }
 }
 
@@ -232,37 +247,39 @@ extension SupabaseManager {
     ///   - itemId: The item's UUID to update
     ///   - equipped: New equipped status
     /// - Returns: Updated PortalInventory
+    /// Serialized via inventoryMutex to prevent concurrent writes from overwriting items.
     func updateItemEquippedStatus(userId: UUID, itemId: UUID, equipped: Bool) async throws -> PortalInventory {
-        var inventory = try await fetchOrCreateInventory(userId: userId)
-        
-        // Find and update the item
-        if let index = inventory.items.firstIndex(where: { $0.id == itemId }) {
-            var updatedItem = inventory.items[index]
-            updatedItem.equipped = equipped
-            inventory.items[index] = updatedItem
-        } else {
-            throw GamificationError.userProgressNotFound // Reuse error type
+        return try await inventoryMutex.withLock { [self] in
+            var inventory = try await fetchOrCreateInventory(userId: userId)
+            
+            if let index = inventory.items.firstIndex(where: { $0.id == itemId }) {
+                var updatedItem = inventory.items[index]
+                updatedItem.equipped = equipped
+                inventory.items[index] = updatedItem
+            } else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            struct InventoryUpdate: Codable {
+                let items: [PortalItem]
+            }
+            
+            let update = InventoryUpdate(items: inventory.items)
+            
+            let response: [PortalInventory] = try await self.client
+                .from("portal_inventory")
+                .update(update)
+                .eq("user_id", value: userId.uuidString)
+                .select()
+                .execute()
+                .value
+            
+            guard let updated = response.first else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            return updated
         }
-        
-        struct InventoryUpdate: Codable {
-            let items: [PortalItem]
-        }
-        
-        let update = InventoryUpdate(items: inventory.items)
-        
-        let response: [PortalInventory] = try await client
-            .from("portal_inventory")
-            .update(update)
-            .eq("user_id", value: userId.uuidString)
-            .select()
-            .execute()
-            .value
-        
-        guard let updated = response.first else {
-            throw GamificationError.userProgressNotFound
-        }
-        
-        return updated
     }
     
     /// Get count of currently equipped items
@@ -271,6 +288,49 @@ extension SupabaseManager {
     func getEquippedItemCount(userId: UUID) async throws -> Int {
         let inventory = try await fetchOrCreateInventory(userId: userId)
         return inventory.items.filter { $0.equipped }.count
+    }
+    
+    /// Sell an item from inventory. Removes the item and awards gold based on rank.
+    /// - Parameters:
+    ///   - userId: The user's UUID
+    ///   - itemId: The item's UUID to sell
+    /// - Returns: Tuple of updated inventory and gold earned
+    func sellItem(userId: UUID, itemId: UUID) async throws -> (inventory: PortalInventory, goldEarned: Int) {
+        return try await inventoryMutex.withLock { [self] in
+            var inventory = try await fetchOrCreateInventory(userId: userId)
+            
+            guard let index = inventory.items.firstIndex(where: { $0.id == itemId }) else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            let item = inventory.items[index]
+            let goldEarned = item.sellPrice
+            
+            inventory.items.remove(at: index)
+            
+            struct InventoryUpdate: Codable {
+                let items: [PortalItem]
+            }
+            
+            let update = InventoryUpdate(items: inventory.items)
+            
+            let response: [PortalInventory] = try await self.client
+                .from("portal_inventory")
+                .update(update)
+                .eq("user_id", value: userId.uuidString)
+                .select()
+                .execute()
+                .value
+            
+            guard let updatedInventory = response.first else {
+                throw GamificationError.userProgressNotFound
+            }
+            
+            // Add gold to user progress
+            _ = try await self.updateGoldAndXP(userId: userId, goldToAdd: goldEarned, xpToAdd: 0)
+            
+            return (inventory: updatedInventory, goldEarned: goldEarned)
+        }
     }
 }
 
@@ -284,74 +344,70 @@ extension SupabaseManager {
     ///   - userId: The user's UUID
     ///   - bossRank: The boss's rank ("E", "D", "C", "B", "A", "S")
     /// - Returns: PortalItem if dropped successfully, nil if error
+    /// Serialized via inventoryMutex to prevent concurrent writes from overwriting items.
     func dropPortalBossItem(userId: UUID, bossRank: String, isPro: Bool = false) async throws -> PortalItem? {
-        // Fetch all item configs
+        // Check inventory cap
+        let currentInventory = try await fetchOrCreateInventory(userId: userId)
+        guard currentInventory.items.count < PortalInventory.maxItems else {
+            return nil // Inventory full
+        }
+        
         let configs = try await fetchPortalItemConfigs()
         guard !configs.isEmpty else { return nil }
-        
-        // Randomly select one item
         guard let selectedConfig = configs.randomElement() else { return nil }
         
-        // Determine rarity tier based on subscription status
-        // Free: 70% same rank, 25% +1 rank, 5% +2 ranks
-        // Pro: 50% same rank, 35% +1 rank, 15% +2 ranks (better rates)
         let rarityRoll = Int.random(in: 1...100)
         let effectiveRank: String
         if isPro {
-            // Pro users get better drop rates
             if rarityRoll <= 50 {
-                effectiveRank = bossRank // 50% same rank as boss
+                effectiveRank = bossRank
             } else if rarityRoll <= 85 {
-                effectiveRank = getNextRank(bossRank) // 35% +1 rank from boss
+                effectiveRank = getNextRank(bossRank)
             } else {
-                effectiveRank = getNextRank(getNextRank(bossRank)) // 15% +2 ranks from boss
+                effectiveRank = getNextRank(getNextRank(bossRank))
             }
         } else {
-            // Free users: standard rates
             if rarityRoll <= 70 {
-                effectiveRank = bossRank // 70% same rank as boss (minimum)
+                effectiveRank = bossRank
             } else if rarityRoll <= 95 {
-                effectiveRank = getNextRank(bossRank) // 25% +1 rank from boss
+                effectiveRank = getNextRank(bossRank)
             } else {
-                effectiveRank = getNextRank(getNextRank(bossRank)) // 5% +2 ranks from boss
+                effectiveRank = getNextRank(getNextRank(bossRank))
             }
         }
         
-        // Roll stat value based on effective rank
         let statValue = rollStatValue(config: selectedConfig, rank: effectiveRank)
         
-        // Check if there are available equipment slots (max 8)
-        let equippedCount = try await getEquippedItemCount(userId: userId)
-        let shouldAutoEquip = equippedCount < 8
-        
-        // Create new item (store rolled rank for quality display)
-        // Auto-equip if there are available slots
-        let newItem = PortalItem(
-            id: UUID(),
-            name: selectedConfig.name,
-            iconUrl: selectedConfig.iconUrl,
-            statType: selectedConfig.statType,
-            statValue: statValue,
-            rolledRank: effectiveRank,  // Store the rank tier it rolled at
-            equipped: shouldAutoEquip  // Auto-equip if slots available
-        )
-        
-        // Add to inventory (don't update lastDropDate - that's for daily drops only)
-        var inventory = try await fetchOrCreateInventory(userId: userId)
-        inventory.items.append(newItem)
-        
-        struct InventoryUpdate: Codable {
-            let items: [PortalItem]
+        return try await inventoryMutex.withLock { [self] in
+            let equippedCount = try await getEquippedItemCount(userId: userId)
+            let shouldAutoEquip = equippedCount < 8
+            
+            let newItem = PortalItem(
+                id: UUID(),
+                name: selectedConfig.name,
+                iconUrl: selectedConfig.iconUrl,
+                statType: selectedConfig.statType,
+                statValue: statValue,
+                rolledRank: effectiveRank,
+                equipped: shouldAutoEquip
+            )
+            
+            var inventory = try await fetchOrCreateInventory(userId: userId)
+            inventory.items.append(newItem)
+            
+            struct InventoryUpdate: Codable {
+                let items: [PortalItem]
+            }
+            
+            let update = InventoryUpdate(items: inventory.items)
+            
+            try await self.client
+                .from("portal_inventory")
+                .update(update)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+            
+            return newItem
         }
-        
-        let update = InventoryUpdate(items: inventory.items)
-        
-        try await client
-            .from("portal_inventory")
-            .update(update)
-            .eq("user_id", value: userId.uuidString)
-            .execute()
-        
-        return newItem
     }
 }

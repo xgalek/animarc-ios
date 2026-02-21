@@ -20,6 +20,7 @@ struct PortalBoss: Codable, Identifiable {
     let statDefense: Int
     let statSpeed: Int
     let maxHp: Int
+    let mapOrder: Int
     let createdAt: Date
     let updatedAt: Date
     
@@ -34,6 +35,7 @@ struct PortalBoss: Codable, Identifiable {
         case statDefense = "stat_defense"
         case statSpeed = "stat_speed"
         case maxHp = "max_hp"
+        case mapOrder = "map_order"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -51,8 +53,8 @@ struct PortalBoss: Codable, Identifiable {
         statDefense = try container.decode(Int.self, forKey: .statDefense)
         statSpeed = try container.decode(Int.self, forKey: .statSpeed)
         maxHp = try container.decode(Int.self, forKey: .maxHp)
+        mapOrder = try container.decodeIfPresent(Int.self, forKey: .mapOrder) ?? 0
         
-        // Handle dates - decode as optional first, then provide default
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
     }
@@ -69,6 +71,7 @@ struct PortalBoss: Codable, Identifiable {
         statDefense: Int,
         statSpeed: Int,
         maxHp: Int,
+        mapOrder: Int,
         createdAt: Date,
         updatedAt: Date
     ) {
@@ -82,8 +85,13 @@ struct PortalBoss: Codable, Identifiable {
         self.statDefense = statDefense
         self.statSpeed = statSpeed
         self.maxHp = maxHp
+        self.mapOrder = mapOrder
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+    
+    var bossLevel: Int {
+        return mapOrder
     }
     
     var rankColor: Color {

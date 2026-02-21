@@ -19,6 +19,16 @@ struct RankInfo {
     var swiftUIColor: Color {
         Color(hex: color)
     }
+    
+    /// Asset catalog image name for the rank badge, nil if no badge exists
+    var badgeImageName: String? {
+        switch code {
+        case "E", "D", "C", "B", "A", "S":
+            return "\(code)_rank"
+        default:
+            return nil
+        }
+    }
 }
 
 /// Service for rank determination based on level
